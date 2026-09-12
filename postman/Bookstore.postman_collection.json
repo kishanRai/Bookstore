@@ -1,0 +1,168 @@
+{
+	"info": {
+		"_postman_id": "8f2b6a3e-1c4d-4b8a-9e2f-6d0a3c7b5e9a",
+		"name": "Bookstore API",
+		"description": "Spring Boot Bookstore catalog service — book listing and health check endpoints.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Catalog",
+			"item": [
+				{
+					"name": "Get All Books",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/books",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"books"
+							]
+						},
+						"description": "Returns all books in the catalog, ordered by id ascending."
+					},
+					"response": [
+						{
+							"name": "200 OK - Books found",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/books",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"books"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "[\n    {\n        \"id\": 1,\n        \"title\": \"Harry Potter and the Philosopher's Stone\",\n        \"author\": \"J.K. Rowling\",\n        \"price\": 45.50,\n        \"currency\": \"EUR\"\n    },\n    {\n        \"id\": 2,\n        \"title\": \"Harry Potter and the Chamber of Secrets\",\n        \"author\": \"J.K. Rowling\",\n        \"price\": 39.90,\n        \"currency\": \"EUR\"\n    }\n]"
+						},
+						{
+							"name": "200 OK - Empty catalog",
+							"originalRequest": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Accept",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/api/v1/books",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"books"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "[]"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Ops",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/actuator/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"actuator",
+								"health"
+							]
+						},
+						"description": "Liveness/readiness probe exposed via Spring Boot Actuator."
+					},
+					"response": [
+						{
+							"name": "200 OK - UP",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/actuator/health",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"actuator",
+										"health"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"body": "{\n    \"status\": \"UP\"\n}"
+						}
+					]
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		}
+	]
+}
