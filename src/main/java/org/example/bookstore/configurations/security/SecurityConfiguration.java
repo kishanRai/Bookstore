@@ -50,7 +50,7 @@ public class SecurityConfiguration {
 		var cors = new CorsConfiguration();
 		cors.setAllowedOrigins( List.of( "http://localhost:5173", "http://localhost:3000" ) );
 		cors.setAllowedMethods( List.of( "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS" ) );
-		cors.setAllowedHeaders( List.of( "Content-Type", "Accept", "X-CSRF-TOKEN" ) );
+		cors.setAllowedHeaders( List.of( "Content-Type", "Accept", "X-CSRF-TOKEN", "Idempotency-Key") );
 		cors.setAllowCredentials( true );
 		var source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration( "/**", cors );

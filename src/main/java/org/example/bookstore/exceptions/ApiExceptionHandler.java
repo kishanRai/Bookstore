@@ -21,4 +21,14 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 		return ProblemDetail.forStatusAndDetail( HttpStatus.CONFLICT, p_emailAlreadyRegisteredException.getMessage() );
 	}
 
+	@ExceptionHandler(ResourceNotFoundException.class)
+	public ProblemDetail handleNotFound(ResourceNotFoundException exception) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
+	}
+
+	@ExceptionHandler(CartConflictException.class)
+	public ProblemDetail handleCartConflict(CartConflictException exception) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+	}
+
 }

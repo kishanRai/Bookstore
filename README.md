@@ -8,13 +8,14 @@
 
 A Java 17 / Spring Boot REST API for an online bookstore, with a paginated book catalog, user registration and session authentication backed by PostgreSQL.
 
-**Implemented:** catalog listing, bounded pagination, registration, login, current-user lookup, logout, CSRF protection and API validation. 
+**Implemented:** catalog listing, bounded pagination, registration, login, current-user lookup, logout, CSRF protection, API validation, persisted carts and order checkout.
 
 ## Contents
 
 - [Run from a new machine](#run-from-a-new-machine)
 - [Test with Postman](#test-with-postman)
 - [API reference](#api-reference)
+- [Cart and checkout](#cart-and-checkout)
 - [Architecture and security](#architecture-and-security)
 - [Tests](#tests)
 - [Configuration](#configuration)
@@ -124,8 +125,9 @@ To stop local development, press `Ctrl+C` in the application terminal, then run 
 4. Send **Ops → Health Check**, then **Catalog → Get Books**.
 5. Run **Authentication → Registration** in its numbered order.
 6. Run **Authentication → Session** in order: login (`200`), current user (`200`), logout (`204`), and current user after logout (`401`).
+7. Seed at least one book, then run **Cart and Checkout** in order; it logs in again and creates one test order.
 
-The collection contains **21 saved requests**: one health request, one catalog request, 15 registration cases and four session requests. A collection pre-request script also calls `/api/v1/authentication/csrf` before each mutation and adds the returned header/token. These auxiliary requests are not included in the saved-request count.
+The collection contains **37 saved requests**: one health request, one catalog request, 15 registration cases, four session requests and 16 cart/checkout requests. A collection pre-request script also calls `/api/v1/authentication/csrf` before each mutation and adds the returned header/token. These auxiliary requests are not included in the saved-request count.
 
 Registration expects `201` for cases 01, 14 and 15; `409` for cases 02 and 03; and `400` for cases 04–13. Expected error responses count as successful tests when their assertions pass. A complete registration run creates three persistent test accounts. Saved example responses are illustrative.
 
@@ -164,6 +166,12 @@ Base URL: `http://localhost:8080`. Request and success-response bodies use JSON 
 | `POST` | `/api/v1/authentication/login` | Public, with CSRF token and associated cookie | `200` with user ID and email; authenticates session |
 | `GET` | `/api/v1/authentication/me` | Authenticated session | `200` with user ID and email |
 | `POST` | `/api/v1/authentication/logout` | CSRF token and associated session cookie | `204`, no body; invalidates current session |
+| `GET` | `/api/v1/cart` | Authenticated session | `200` with cart and totals |
+| `POST` | `/api/v1/cart/items` | Authenticated session and CSRF | `200` with updated cart |
+| `PUT` | `/api/v1/cart/items/{bookId}` | Authenticated session and CSRF | `200` with updated cart |
+| `DELETE` | `/api/v1/cart/items/{bookId}` | Authenticated session and CSRF | `204`, no body |
+| `POST` | `/api/v1/orders` | Authenticated session, CSRF and Idempotency-Key | `201` for creation; `200` for retry |
+| `GET` | `/api/v1/orders/{orderId}` | Authenticated owner | `200` with saved summary |
 
 ### Catalog pagination
 
@@ -270,9 +278,70 @@ Controller validation and application exceptions are handled through `ApiExcepti
 | `400` | Malformed JSON, invalid request fields or invalid pagination |
 | `401` | Incorrect login credentials or anonymous access to `/me` |
 | `403` | Missing/invalid CSRF token or forbidden access |
-| `409` | Email already registered |
+| `404` | Missing book/cart item/order, or an order owned by another user |
+| `409` | Email already registered, cart capacity exceeded, or checkout of an empty cart |
 
 CSRF validation runs before the controller, so an invalid POST without a valid token can return `403` before field validation would return `400`. Framework-generated Problem Details may include additional fields such as `instance`; clients should use the HTTP status and available fields instead of assuming an exact error-property set.
+
+## Cart and checkout
+
+All cart and order endpoints use the authenticated session. POST, PUT and DELETE also require CSRF. Ownership is resolved on the server; requests do not accept a customer ID, prices or order totals as authoritative input.
+
+### Cart operations
+
+| Method | Endpoint | Result |
+|---|---|---|
+| `GET` | `/api/v1/cart` | `200` with items, total quantity, total and currency |
+| `POST` | `/api/v1/cart/items` | `200` with the updated cart; adds to an existing book's quantity |
+| `PUT` | `/api/v1/cart/items/{bookId}` | `200` with the updated cart; replaces quantity |
+| `DELETE` | `/api/v1/cart/items/{bookId}` | `204`; repeated removal of an absent item also returns `204` |
+
+Add a book using its ID from the catalog:
+
+```json
+{"bookId": 1, "quantity": 2}
+```
+
+Update quantity with `{"quantity": 4}`. Quantity must be an integer from 1 to 99; use DELETE to remove an item. Invalid request fields return `400`, an unknown book or a missing item on PUT returns `404`, and exceeding the combined quantity or cart capacity returns `409`. A cart supports up to 100 distinct books.
+
+Illustrative cart for two copies priced at EUR 12.50 each:
+
+```json
+{
+  "items": [{"bookId": 1, "title": "Example book", "author": "Example author", "unitPrice": 12.50, "quantity": 2, "lineTotal": 25.00}],
+  "totalQuantity": 2,
+  "total": 25.00,
+  "currency": "EUR"
+}
+```
+
+The empty cart returns `items: []`, `totalQuantity: 0`, `total: 0.00` and `currency: "EUR"`. Items are ordered by book ID. Cart contents persist across logout and application restarts; cart prices reflect the catalog at the time of the request.
+
+### Create and retrieve an order
+
+Send `POST /api/v1/orders` without a body, with the session cookie, CSRF header and an `Idempotency-Key` header containing a UUID. The server checks out the user's current cart. A new key and nonempty cart return `201 Created` with `Location: /api/v1/orders/{id}` and an order summary. An empty cart returns `409`; an absent or malformed key returns `400`.
+
+```json
+{
+  "id": 1,
+  "createdAt": "2026-09-13T12:00:00Z",
+  "items": [{"bookId": 1, "title": "Example book", "author": "Example author", "unitPrice": 12.50, "quantity": 2, "lineTotal": 25.00}],
+  "total": 25.00,
+  "currency": "EUR"
+}
+```
+
+`GET /api/v1/orders/{id}` returns the saved summary to its owner. Missing orders and orders belonging to another user both return `404`. Order titles, authors and unit prices are copied at checkout, so subsequent catalog changes do not rewrite historical orders. Monetary calculations use `BigDecimal`. This checkout records an order; payments, stock reservation, shipping and tax calculation are not implemented.
+
+Generate one key per checkout attempt and reuse it if the response is lost. Retrying a committed checkout with the same key returns the original order with `200`, even if the cart now contains new items; those new items are not consumed. Keys are scoped to the user and retained with the order. Use a new key for a genuinely new order. Adding cart items via POST is not idempotent; replaying an add increases quantity again.
+
+Order creation, item snapshots and cart clearing run in a single database transaction. All cart operations and checkout lock the owning `app_users` row with a pessimistic write lock at READ COMMITTED isolation, which serializes concurrent operations for that user while allowing different users to proceed independently. Database uniqueness constraints backstop one cart row per user/book and one order per user/key. This coarse lock is a deliberate tradeoff for a bounded cart; inventory and concurrent catalog administration would require additional coordination.
+
+### Validate the complete flow in Postman
+
+Seed at least one catalog book using the setup command, then run Registration, Session, and **Cart and Checkout** in order with a fresh test account. The last folder logs in again, fetches a book ID, checks cart CRUD and invalid quantity handling, creates one order, retries the same checkout key, reads the order, verifies the empty cart and logs out. A complete collection run creates three test users and one test order.
+
+Run **Create order** once; use **Retry the same checkout** to resend its key. Clicking Create order again generates a new key. The collection's existing CSRF script obtains fresh tokens for all mutations. React's credentialed CORS configuration permits `Idempotency-Key` in addition to the existing headers.
 
 ## Architecture and security
 
@@ -284,21 +353,22 @@ CSRF validation runs before the controller, so an invalid POST without a valid t
 | Tests | JUnit, Mockito, MockMvc and PostgreSQL Testcontainers |
 | Build and local development | Maven Wrapper, Docker Compose, Lombok and DevTools |
 
-The code is grouped by technical layer, with `catalog` and `authentication` subpackages:
+The code is grouped by technical layer, with `catalog`, `authentication`, `cart` and `orders` subpackages:
 
 ```text
 src/main/java/org/example/bookstore/
   configurations/security/    HTTP security, authentication provider, password encoder
   controllers/               Request mapping and validation
-  services/                  Catalog mapping, registration and current-user lookup
+  services/                  Catalog mapping, authentication, cart rules and transactional checkout
   repositories/              Database access
-  entities/                  Book and AppUser persistence models
+  entities/                  Book, AppUser, CartItem, PurchaseOrder and OrderItem models
   dtos/                      API request/response records
   exceptions/                Application exceptions and Problem Details
 
 src/main/resources/db/migration/
   V1__create_books.sql
   V2__create_app_users.sql
+  V3__create_cart_and_orders.sql
 ```
 
 - `DaoAuthenticationProvider` verifies credentials against stored PBKDF2 hashes. The login request's string representation redacts credentials.
@@ -317,6 +387,7 @@ Applied Flyway migrations must remain unchanged, including formatting. Add a new
 | `BookCatalogIntegrationTest` | Database-backed catalog ordering, page metadata, empty catalog and pages beyond the last result |
 | `RegistrationIntegrationTest` | Registration, stored password hashing, case-insensitive duplicates and validation, with CSRF tokens |
 | `AuthenticationIntegrationTest` | Login, normalization, session rotation/persistence, wrong credentials, unknown users, anonymous access, missing CSRF and logout |
+| `CartCheckoutIntegrationTest` | Cart operations, limits, owner isolation, snapshots, idempotency, concurrent updates and transaction rollback |
 | `BookstoreApplicationTests` | Application-context startup |
 
 Integration tests use `PostgresTestConfiguration` and `@ServiceConnection`; they apply the real Flyway migrations to disposable PostgreSQL containers. Authentication tests obtain CSRF tokens from the endpoint and reuse sessions across requests. Catalog MVC tests use `@WebMvcTest`; database integration tests use `@SpringBootTest` with MockMvc.
@@ -366,10 +437,6 @@ On macOS/Linux, substitute `./mvnw` in Maven commands. For startup failures, ins
 
 ## Remaining work
 
-The following are not implemented yet:
+The core backend requirements are implemented. The remaining assignment work is the React catalog, authentication, cart and checkout/order-summary interface.
 
-1. Persisted shopping cart owned by the authenticated user, including add/update/remove operations and server-calculated totals.
-2. Checkout and order persistence, saving item prices and clearing the cart in one transaction.
-3. React catalog, authentication, cart and order-summary screens.
-
-Further extensions include catalog administration, cursor pagination, API documentation generation, CI automation and shared session storage for multiple application instances.
+Further extensions include catalog administration, stock management and payments, cursor pagination, API documentation generation, CI automation and shared session storage for multiple application instances.

@@ -6,6 +6,7 @@ import org.example.bookstore.repositories.authentication.AppUserRepository;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -18,5 +19,13 @@ public class CurrentUserService {
 		var user = appUserRepository.findByEmail( authentication.getName())
 			.orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
 		return new UserResponse(user.getId(), user.getEmail());
+	}
+
+	// The caller owns the transaction; this lock lasts until it commits or rolls back.
+	@Transactional(propagation = Propagation.MANDATORY)
+	public Long lockCartOwner(Authentication authentication) {
+		return appUserRepository.findByEmailForUpdate(authentication.getName())
+			.orElseThrow(() -> new BadCredentialsException("Invalid email or password"))
+			.getId();
 	}
 }
