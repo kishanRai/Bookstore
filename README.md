@@ -29,7 +29,7 @@ Bookstore exposes a read API over a `books` catalog:
 - Each book has a `title`, `author`, `price`, and `currency`.
 - The schema is owned by **Flyway migrations**, not Hibernate auto-DDL (`ddl-auto=validate`), so the database is the source of truth and every change is versioned.
 - Currency is currently constrained to `EUR` at the database level (a deliberate, narrow first slice — see [Roadmap](#roadmap--possible-extensions)).
-- The service layer maps entities to a `BookResponse` DTO, keeping persistence details out of the API contract.
+- The service layer maps entities to a `BookResponse` DTO, keeping persistence details out of the API contract. Results are wrapped in `BookPageResponse` with bounded pagination and metadata.
 
 ## Tech Stack
 
@@ -40,7 +40,7 @@ Bookstore exposes a read API over a `books` catalog:
 | Database | PostgreSQL 17 |
 | Schema Migrations | Flyway (`flyway-database-postgresql`) |
 | Boilerplate reduction | Lombok |
-| Unit Testing | JUnit 5 + Mockito (`@WebMvcTest`) |
+| MVC Slice Testing | JUnit + Mockito (`@WebMvcTest`) |
 | Integration Testing | Testcontainers (`@SpringBootTest` against a real containerized Postgres) |
 | Build | Maven (via Maven Wrapper — no local Maven install required) |
 | Local Infra | Docker Compose |
@@ -59,7 +59,8 @@ src/main/java/org/example/bookstore/
 ├── entities/catalog/
 │   └── Book.java                      # JPA entity, maps to the `books` table
 └── dtos/catalog/
-    └── BookResponse.java              # API response record
+    ├── BookResponse.java              # One book
+    └── BookPageResponse.java          # Books plus pagination metadata
 
 src/main/resources/
 ├── application.properties             # Base config (used by tests via Testcontainers)
@@ -67,37 +68,131 @@ src/main/resources/
 └── db/migration/V1__create_books.sql  # Flyway migration defining the `books` table + constraints
 ```
 
-Package-by-feature (`catalog`) is used from the start so additional domains (e.g. orders, customers) can be added as siblings without restructuring.
+Packages are grouped by technical layer, with a `catalog` subpackage in each layer. Additional domains can follow the same structure.
 
 ## API Endpoints
 
 | Method | Path | Description | Success Response |
 |---|---|---|---|
-| `GET` | `/api/v1/books` | Returns all books in the catalog, ordered by `id` ascending | `200 OK` — JSON array of books |
-| `GET` | `/actuator/health` | Liveness/readiness health check (Spring Boot Actuator; details hidden) | `200 OK` — `{"status":"UP"}` |
+| `GET` | `/api/v1/books` | Returns a bounded page of books, ordered by `id` ascending | `200 OK` — JSON object containing `content` and pagination metadata |
+| `GET` | `/actuator/health` | Application health (Spring Boot Actuator; details hidden) | `200 OK` when healthy — `{"status":"UP"}` |
 
-**Example — `GET /api/v1/books`**
+### Catalog query parameters
 
-```json
-[
-    {
-        "id": 1,
-        "title": "Harry Potter and the Philosopher's Stone",
-        "author": "J.K. Rowling",
-        "price": 45.50,
-        "currency": "EUR"
-    },
-    {
-        "id": 2,
-        "title": "Harry Potter and the Chamber of Secrets",
-        "author": "J.K. Rowling",
-        "price": 39.90,
-        "currency": "EUR"
-    }
-]
+```http
+GET /api/v1/books?page=0&size=20
 ```
 
-An empty catalog returns `200 OK` with `[]` (never a `404`).
+| Parameter | Type | Required | Default | Inclusive limits | Meaning |
+|---|---|---|---|---|---|
+| `page` | Integer | No | `0` | `0` to `10000` | Zero-based page number: `0` is the first page, `1` is the second |
+| `size` | Integer | No | `20` | `1` to `100` | Maximum number of books returned in one page |
+
+Omitted or empty parameters use their defaults. Results always use ascending `id` order; client-controlled sorting is not currently supported. Values outside the limits are rejected with `400 Bad Request`, rather than silently clamped. These bounds are declared on `BookController` using `@Min` and `@Max`.
+
+Examples (use `curl.exe` in Windows PowerShell):
+
+```powershell
+# First page, default capacity of 20 books
+curl.exe "http://localhost:8080/api/v1/books"
+
+# Second page, at most two books
+curl.exe "http://localhost:8080/api/v1/books?page=1&size=2"
+
+# Largest allowed page capacity
+curl.exe "http://localhost:8080/api/v1/books?page=0&size=100"
+```
+
+On macOS/Linux, use `curl` with the same quoted URLs.
+
+### Successful response
+
+For a catalog containing two books, `GET /api/v1/books?page=0&size=1` returns:
+
+```json
+{
+  "content": [
+    {
+      "id": 1,
+      "title": "Harry Potter and the Philosopher's Stone",
+      "author": "J.K. Rowling",
+      "price": 45.50,
+      "currency": "EUR"
+    }
+  ],
+  "page": 0,
+  "size": 1,
+  "totalElements": 2,
+  "totalPages": 2,
+  "hasNext": true
+}
+```
+
+The title, price, and ID above are illustrative; actual values come from the database.
+
+| Field | JSON type | Meaning |
+|---|---|---|
+| `content` | Array of book objects | Books on this page; empty when no rows match the requested page |
+| `page` | Number (integer) | Requested zero-based page number |
+| `size` | Number (integer) | Requested page capacity, not the actual number of returned books |
+| `totalElements` | Number (integer) | Total books in the catalog, across all pages; represented by a Java `long` |
+| `totalPages` | Number (integer) | Number of pages for the requested size; `0` for an empty catalog |
+| `hasNext` | Boolean | Whether another page exists after the requested page |
+
+Each book contains `id` (integer), `title` (string), `author` (string), `price` (JSON number backed by Java `BigDecimal`), and `currency` (currently `"EUR"`). Clients should format prices for display; JSON numbers do not guarantee trailing zeroes.
+
+The number of returned books is `content.length`, which can be smaller than `size`. To browse sequentially, keep the same `size` and increment `page` while `hasNext` is `true`, subject to the page-number cap.
+
+**Contract change:** the endpoint now returns a page object instead of its earlier bare JSON array. Frontend and Postman consumers should read the books from `response.content`.
+
+### Empty catalog and pages beyond the last result
+
+An empty catalog with default parameters returns `200 OK`:
+
+```json
+{
+  "content": [],
+  "page": 0,
+  "size": 20,
+  "totalElements": 0,
+  "totalPages": 0,
+  "hasNext": false
+}
+```
+
+A valid page number beyond the available results also returns `200 OK`, not `404`. For example, with two books, requesting `page=1&size=20` returns:
+
+```json
+{
+  "content": [],
+  "page": 1,
+  "size": 20,
+  "totalElements": 2,
+  "totalPages": 1,
+  "hasNext": false
+}
+```
+
+### Invalid requests
+
+| Example query | Result | Reason |
+|---|---|---|
+| `?page=-1` | `400 Bad Request` | Page cannot be negative |
+| `?page=10001` | `400 Bad Request` | Exceeds the page-number cap |
+| `?size=0` or `?size=-1` | `400 Bad Request` | Size must be positive |
+| `?size=101` | `400 Bad Request` | Exceeds the maximum page capacity |
+| `?page=abc` or `?size=1.5` | `400 Bad Request` | Parameters must be integers |
+| `?page=2147483648` | `400 Bad Request` | Value cannot be represented by the controller's Java `int` parameter |
+
+Invalid requests are rejected before invoking `BookService`. A custom error-body schema is not defined yet; clients should rely on the HTTP status rather than an assumed error JSON structure.
+
+### Pagination implementation and limits
+
+`BookService` passes a `PageRequest` with ascending ID order to `BookRepository.findAll(...)`. The database limits the selected rows; the application does not load the entire catalog and then slice a Java list. The result is mapped to our `BookPageResponse` DTO.
+
+This bounds the number of books loaded and serialized per request. It does not guarantee constant query time: offset queries can become expensive on deep pages, and obtaining totals can require a count query. The page cap is an application policy, not a Spring limitation. With `size=100`, page `10000` begins at offset `1000000`; requests for a higher page remain invalid even if more books exist. `hasNext` reflects the data and does not override this cap.
+
+Ascending ID order is deterministic for an unchanged catalog. Separate page requests do not share a database snapshot, so concurrent inserts or deletions can change totals or shift results. Cursor pagination is a possible future improvement for larger catalogs.
 
 ## Postman Collection
 
@@ -111,7 +206,7 @@ A ready-to-import Postman collection and environment are included in [`postman/`
 1. Open Postman → **Import** → **Files**.
 2. Select both `postman/Bookstore.postman_collection.json` and `postman/Bookstore.postman_environment.json`.
 3. Select the **Bookstore - Local** environment (top-right environment dropdown) so `{{baseUrl}}` resolves.
-4. Start the app (see [Getting Started](#getting-started)), then run **Catalog → Get All Books** or **Ops → Health Check**.
+4. Start the app (see [Getting Started](#getting-started)), then run **Catalog → Get All Books** or **Ops → Health Check**. The existing catalog request name is historical: the endpoint now returns one page. Add `page` and `size` in the Params tab; refer to [API Endpoints](#api-endpoints) for the current response contract. Older saved responses in the collection may still show the previous array format.
 
 <details>
 <summary><strong>Or paste the raw collection JSON</strong> (Postman → Import → Raw Text)</summary>
@@ -241,7 +336,7 @@ docker compose exec postgres psql -U bookstore -d bookstore -c \
 ### 5. Call the API
 
 ```bash
-curl http://localhost:8080/api/v1/books
+curl "http://localhost:8080/api/v1/books?page=0&size=20"
 ```
 
 ...or use the [Postman collection](#postman-collection) above.
@@ -250,8 +345,8 @@ curl http://localhost:8080/api/v1/books
 
 Two complementary layers, both TDD-driven:
 
-- **`BookControllerTest`** (`@WebMvcTest` + Mockito `@MockitoBean`) — a fast, sliced MVC test that mocks `BookService` and asserts the controller's HTTP contract (status, content type, JSON body) in isolation, with no Spring context startup cost or database involved.
-- **`BookCatalogIntegrationTest`** (`@SpringBootTest` + `@AutoConfigureMockMvc`, backed by a real containerized Postgres via `PostgresTestConfiguration`) — exercises the full stack (controller → service → repository → real database), verifying empty-catalog behavior and correct `id`-ordered serialization against actual rows. `@Sql` cleans the `books` table before and after each test for isolation.
+- **`BookControllerTest`** (`@WebMvcTest` + Mockito `@MockitoBean`) — a fast, sliced MVC test that mocks `BookService` and asserts the controller's HTTP contract (status, content type, JSON body) using a focused Spring MVC context and no database. It covers default pagination, accepted boundary values, and invalid parameters rejected before the service is invoked.
+- **`BookCatalogIntegrationTest`** (`@SpringBootTest` + `@AutoConfigureMockMvc`, backed by a real containerized Postgres via `PostgresTestConfiguration`) — exercises the full stack (controller → service → repository → real database), verifying empty-catalog behavior, correct `id`-ordered serialization, requested page contents and metadata, and empty content beyond the last page against actual rows. `@Sql` cleans the `books` table before and after each test for isolation.
 - **`BookstoreApplicationTests`** — a plain context-load smoke test, also against a real Postgres container.
 
 Together they give fast feedback on the HTTP layer and high confidence that the JPA mappings, Flyway schema, and database constraints actually work end-to-end.
@@ -278,7 +373,7 @@ Key settings (`application.properties`):
 Not implemented today — listed to show the intended direction, not as claims about current functionality:
 
 - `POST /api/v1/books` (and `PUT`/`DELETE`) to manage the catalog via the API instead of `psql`
-- Pagination/sorting query params on `GET /api/v1/books`
+- Cursor pagination for larger catalogs and client-controlled sorting (bounded `page`/`size` pagination is implemented)
 - Multi-currency support (the `chk_books_currency` constraint currently pins `EUR`)
 - OpenAPI/Swagger UI for interactive API docs
 - Global exception handling / `@ControllerAdvice` for consistent error responses
