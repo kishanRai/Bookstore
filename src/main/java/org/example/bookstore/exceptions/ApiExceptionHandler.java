@@ -60,13 +60,14 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	}
 
 	/**
-	 * Maps cart capacity and empty-checkout conflicts to status 409.
+	 * Maps every business-rule violation (cart capacity, empty checkout, insufficient stock, ...)
+	 * to status 409 through their common supertype, rather than one handler per concrete subtype.
 	 *
 	 * @param exception failure being inspected or translated
-	 * @return the cart-conflict Problem Details response
+	 * @return the business-rule-conflict Problem Details response
 	 */
-	@ExceptionHandler(CartConflictException.class)
-	public ProblemDetail handleCartConflict(CartConflictException exception) {
+	@ExceptionHandler(BusinessRuleViolationException.class)
+	public ProblemDetail handleBusinessRuleViolation(BusinessRuleViolationException exception) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
 	}
 

@@ -3,7 +3,7 @@ package org.example.bookstore.exceptions;
 /**
  * Signals a cart capacity or checkout conflict that the HTTP adapter translates to status 409.
  */
-public class CartConflictException extends RuntimeException {
+public class CartConflictException extends BusinessRuleViolationException {
 
 	/**
 	 * Creates a conflict with a client-safe business explanation.
