@@ -21,6 +21,9 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
+/**
+ * Verifies the published API contract, bundled Swagger assets and session-aware documentation flow.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(PostgresTestConfiguration.class)
@@ -145,5 +148,8 @@ class OpenApiIntegrationTest {
             body.path("headerName").asText(), body.path("token").asText());
     }
 
+    /**
+     * Keeps a test session and its CSRF header/token together when exercising authenticated mutations.
+     */
     private record CsrfSession(MockHttpSession session, String headerName, String token) { }
 }

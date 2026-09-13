@@ -21,6 +21,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.ObjectMapper;
 
+/**
+ * Verifies session authentication, CSRF and credential failure behavior against PostgreSQL.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import( PostgresTestConfiguration.class )
@@ -52,6 +55,9 @@ class AuthenticationIntegrationTest {
 												""", Long.class, EMAIL, passwordEncoder.encode( PASSWORD ) );
 	}
 
+	/**
+	 * Keeps a test session and its CSRF header/token together when exercising authenticated mutations.
+	 */
 	private record CsrfSession(MockHttpSession session, String headerName, String token) {
 
 	}

@@ -35,6 +35,9 @@ import org.springframework.test.web.servlet.ResultActions;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+/**
+ * Verifies cart rules, ownership, checkout snapshots, concurrency and rollback through the HTTP layer.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import( PostgresTestConfiguration.class )
@@ -308,5 +311,28 @@ class CartCheckoutIntegrationTest {
 			jdbc.execute( "DROP FUNCTION test_reject_cart_delete()" );
 		}
 	}
+
+    @ParameterizedTest
+    @ValueSource(strings = {"2.7", "2.0", "\"2\""})
+    void shouldRejectNonIntegerJsonQuantitiesWithoutChangingCart(String value) throws Exception {
+        add(KISHAN, firstBook, 1).andExpect(status().isOk());
+        mvc.perform(post("/api/v1/cart/items").with(user(KISHAN)).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"bookId\":" + firstBook + ",\"quantity\":" + value + "}"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(put("/api/v1/cart/items/{id}", firstBook).with(user(KISHAN)).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON).content("{\"quantity\":" + value + "}"))
+            .andExpect(status().isBadRequest());
+        cart(KISHAN).andExpect(jsonPath("$.totalQuantity").value(1));
+    }
+
+    @Test
+    void shouldRejectFractionalBookIdInsteadOfSelectingAnotherBook() throws Exception {
+        mvc.perform(post("/api/v1/cart/items").with(user(KISHAN)).with(csrf())
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"bookId\":" + firstBook + ".9,\"quantity\":1}"))
+            .andExpect(status().isBadRequest());
+        cart(KISHAN).andExpect(jsonPath("$.items").isEmpty());
+    }
 }
 

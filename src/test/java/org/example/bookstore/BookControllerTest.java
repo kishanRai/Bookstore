@@ -21,6 +21,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+/**
+ * Checks the catalog HTTP contract and pagination validation with an MVC slice and mocked service.
+ */
 @WebMvcTest( BookController.class )
 @Import(SecurityConfiguration.class)
 class BookControllerTest {
