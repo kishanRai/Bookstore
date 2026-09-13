@@ -21,7 +21,6 @@ A Java 17 / Spring Boot REST API for an online bookstore, with a paginated book 
 - [Tests](#tests)
 - [Configuration](#configuration)
 - [Troubleshooting](#troubleshooting)
-- [Remaining work](#remaining-work)
 
 ## Run from a new machine
 
@@ -104,13 +103,13 @@ curl.exe http://localhost:8080/actuator/health
 curl.exe "http://localhost:8080/api/v1/books?page=0&size=20"
 ```
 
-Health should include `"status":"UP"`. A fresh database has no books or users, so an empty catalog response is expected. There is no catalog write API yet. To insert one sample book, run this single-line command in any of the shells above:
+Health should include `"status":"UP"`. A fresh database has no books or users, so an empty catalog response is expected. There is no catalog write API yet. To insert one sample book with 10 copies in stock, run this single-line command in any of the shells above:
 
 ```shell
-docker compose exec -T postgres psql -U bookstore -d bookstore -c "INSERT INTO books (title, author, price, currency) SELECT 'Clean Code', 'Robert C. Martin', 35.00, 'EUR' WHERE NOT EXISTS (SELECT 1 FROM books WHERE title = 'Clean Code' AND author = 'Robert C. Martin');"
+docker compose exec -T postgres psql -U bookstore -d bookstore -c "INSERT INTO books (title, author, price, currency, stock_quantity) SELECT 'Clean Code', 'Robert C. Martin', 35.00, 'EUR', 10 WHERE NOT EXISTS (SELECT 1 FROM books WHERE title = 'Clean Code' AND author = 'Robert C. Martin');"
 ```
 
-The demo command avoids inserting another matching row when rerun sequentially. Actual IDs are assigned by PostgreSQL.
+The demo command avoids inserting another matching row when rerun sequentially. Actual IDs are assigned by PostgreSQL. `stock_quantity` has no default: every insert must state it explicitly, since checkout reserves against it.
 
 ### 7. Exercise the backend
 
@@ -331,7 +330,7 @@ Controller validation and application exceptions are handled through `ApiExcepti
 | `401` | Incorrect login credentials or anonymous access to `/me` |
 | `403` | Missing/invalid CSRF token or forbidden access |
 | `404` | Missing book/cart item/order, or an order owned by another user |
-| `409` | Email already registered, cart capacity exceeded, or checkout of an empty cart |
+| `409` | Email already registered, cart capacity exceeded, checkout of an empty cart, or insufficient stock for a checkout line |
 
 CSRF validation runs before the controller, so an invalid POST without a valid token can return `403` before field validation would return `400`. Framework-generated Problem Details may include additional fields such as `instance`; clients should use the HTTP status and available fields instead of assuming an exact error-property set.
 
@@ -383,11 +382,11 @@ Send `POST /api/v1/orders` without a body, with the session cookie, CSRF header 
 }
 ```
 
-`GET /api/v1/orders/{id}` returns the saved summary to its owner. Missing orders and orders belonging to another user both return `404`. Order titles, authors and unit prices are copied at checkout, so subsequent catalog changes do not rewrite historical orders. Monetary calculations use `BigDecimal`. This checkout records an order; payments, stock reservation, shipping and tax calculation are not implemented.
+`GET /api/v1/orders/{id}` returns the saved summary to its owner. Missing orders and orders belonging to another user both return `404`. Order titles, authors and unit prices are copied at checkout, so subsequent catalog changes do not rewrite historical orders. Monetary calculations use `BigDecimal`. Checkout reserves (decrements) stock for every line before saving the order; a line whose book has insufficient stock fails the whole checkout with `409`, leaving stock and the cart unchanged. Payments, shipping and tax calculation are not implemented.
 
-Generate one key per checkout attempt and reuse it if the response is lost. Retrying a committed checkout with the same key returns the original order with `200`, even if the cart now contains new items; those new items are not consumed. Keys are scoped to the user and retained with the order. Use a new key for a genuinely new order. Adding cart items via POST is not idempotent; replaying an add increases quantity again.
+Generate one key per checkout attempt and reuse it if the response is lost. Retrying a committed checkout with the same key returns the original order with `200`, even if the cart now contains new items; those new items are not consumed, and stock is not reserved again. Keys are scoped to the user and retained with the order. Use a new key for a genuinely new order. Adding cart items via POST is not idempotent; replaying an add increases quantity again.
 
-Order creation, item snapshots and cart clearing run in a single database transaction. All cart operations and checkout lock the owning `app_users` row with a pessimistic write lock at READ COMMITTED isolation, which serializes concurrent operations for that user while allowing different users to proceed independently. Database uniqueness constraints backstop one cart row per user/book and one order per user/key. This coarse lock is a deliberate tradeoff for a bounded cart; inventory and concurrent catalog administration would require additional coordination.
+Order creation, stock reservation, item snapshots and cart clearing run in a single database transaction. All cart operations and checkout lock the owning `app_users` row with a pessimistic write lock at READ COMMITTED isolation, which serializes concurrent operations for that user while allowing different users to proceed independently. Checkout additionally locks each purchased book's row (in ascending book-ID order, matching the cart's own iteration order, so two checkouts sharing books cannot deadlock) before reserving its stock, which is what stops two customers from concurrently overselling the same book. Database uniqueness constraints backstop one cart row per user/book and one order per user/key, and a `CHECK (stock_quantity >= 0)` constraint backstops the reservation itself. Concurrent catalog administration (creating or repricing books while checkouts run) would require additional coordination; there is no catalog write API yet.
 
 ### Validate the complete flow in Postman
 
@@ -411,12 +410,12 @@ The code is grouped by technical layer, with `catalog`, `authentication`, `cart`
 src/main/java/org/example/bookstore/
   configurations/security/    HTTP security, authentication provider, password encoder
   controllers/               Request mapping and validation
-  application/               Cart/checkout use cases, customer lock and business-event ports
+  application/               Cart/checkout use cases, customer lock, stock-reservation strategy and business-event ports
   domain/                    Cart aggregate, Money value object, CurrencyCode and CartLimits
   services/                  Authentication and transactional persistence orchestration
   observability/             Correlated request logging and committed business-event observers
   repositories/              Database access
-  entities/                  Book, AppUser, CartItem, PurchaseOrder and OrderItem models
+  entities/                  Book (with stock reservation), AppUser, CartItem, PurchaseOrder and OrderItem models
   dtos/                      API request/response records
   exceptions/                Application exceptions and Problem Details
 
@@ -424,6 +423,7 @@ src/main/resources/db/migration/
   V1__create_books.sql
   V2__create_app_users.sql
   V3__create_cart_and_orders.sql
+  V4__add_book_stock.sql
 ```
 
 - `DaoAuthenticationProvider` verifies credentials against stored PBKDF2 hashes. The login request's string representation redacts credentials.
@@ -438,14 +438,14 @@ Applied Flyway migrations must remain unchanged, including formatting. Add a new
 
 | Test class | Coverage |
 |---|---|
-| `CartTest`, `MoneyTest`, `OrderFactoryTest`, `OrderEncapsulationTest` | Isolated domain rules, exact totals, boundaries and immutable order snapshots |
-| `OrderServiceTest` | Isolated orchestration, clock, replay, ownership and failure behavior |
+| `CartTest`, `MoneyTest`, `OrderFactoryTest`, `OrderEncapsulationTest`, `BookTest` | Isolated domain rules, exact totals, boundaries, immutable order snapshots and stock-reservation invariants (happy path, exact-boundary and insufficient-stock failure) |
+| `OrderServiceTest` | Isolated orchestration, clock, replay (including that replay never re-reserves stock), stock-reservation failure, ownership and failure behavior |
 | `TransactionalBusinessEventsTest`, `RequestLoggingFilterTest`, `BusinessEventLoggerTest` | Commit/rollback notification timing, correlation context cleanup and actual Log4j2 event fields |
 | `BookControllerTest` | MVC contract, pagination defaults/bounds and invalid input, using actual HTTP security rules and a mocked catalog service |
 | `BookCatalogIntegrationTest` | Database-backed catalog ordering, page metadata, empty catalog and pages beyond the last result |
 | `RegistrationIntegrationTest` | Registration, stored password hashing, case-insensitive duplicates and validation, with CSRF tokens |
 | `AuthenticationIntegrationTest` | Login, normalization, session rotation/persistence, wrong credentials, unknown users, anonymous access, missing CSRF and logout |
-| `CartCheckoutIntegrationTest` | Cart operations, limits, owner isolation, snapshots, idempotency, concurrent updates and transaction rollback |
+| `CartCheckoutIntegrationTest` | Cart operations, limits, owner isolation, snapshots, idempotency, concurrent updates, transaction rollback, checkout rejection on insufficient stock and stock-safe concurrent checkouts by different customers for the same book |
 | `OpenApiIntegrationTest` | Public documentation/assets, endpoint schemas, security requirements and CSRF session flow |
 | `BookstoreApplicationTests` | Application-context startup |
 
@@ -472,7 +472,7 @@ These JavaScript tests use Node's built-in test runner with no npm dependencies.
 Run isolated Java tests without Docker:
 
 ```powershell
-.\mvnw.cmd "-Dtest=CartTest,MoneyTest,OrderFactoryTest,OrderEncapsulationTest,OrderServiceTest,TransactionalBusinessEventsTest,RequestLoggingFilterTest,BusinessEventLoggerTest" test
+.\mvnw.cmd "-Dtest=CartTest,MoneyTest,OrderFactoryTest,OrderEncapsulationTest,BookTest,OrderServiceTest,TransactionalBusinessEventsTest,RequestLoggingFilterTest,BusinessEventLoggerTest" test
 ```
 
 [GitHub Actions](.github/workflows/verify.yml) runs Java 17, a clean Maven verification with PostgreSQL Testcontainers, and the JavaScript tests for pushes and pull requests. The workflow uses the official [Java setup](https://github.com/actions/setup-java) and [Node setup](https://github.com/actions/setup-node) actions. A workflow file is not a claim that a remote run has passed; check the status of the submitted commit.
@@ -517,7 +517,7 @@ Application loggers use Lombok `@Log4j2` with `spring-boot-starter-log4j2`. The 
 
 Scoped Log4j2 `ThreadContext` supplies correlation, event, status, duration and customer/order identifiers to ECS JSON and restores prior thread values afterwards. Context values are JSON strings. Application event/request logs exclude passwords, hashes, session cookies, CSRF tokens, emails, query strings and request bodies. Successful business events are emitted after commit, and `X-Correlation-ID` links them to the HTTP response.
 
-The default root level is `WARN`, so `INFO` request/business-event logs and startup messages are suppressed while warnings and errors remain visible. Correlation headers are still returned. To restore informational logs, set `LOGGING_LEVEL_ROOT=INFO` in the application environment and restart, or change the default in `application.properties`.
+The default root level is `WARN`, so framework, request, and business-event `INFO` logs are suppressed while warnings and errors remain visible. The `BookstoreApplication` lifecycle logger remains at `INFO`, so `Started BookstoreApplication...` is still visible as the startup confirmation. To restore all informational logs, set `LOGGING_LEVEL_ROOT=INFO` in the application environment and restart, or change the default in `application.properties`.
 
 Sessions are currently stored in the application process, so restarting signs users out. Multiple replicas require a shared session store or an explicitly designed routing strategy. For HTTPS deployment, configure secure session cookies, deployed frontend origins and external database credentials. The checked-in credentials and CORS origins are for local development.
 
@@ -539,9 +539,3 @@ Sessions are currently stored in the application process, so restarting signs us
 | Maven reports `PKIX path building failed` | Check the JDK used by Maven and its certificate/proxy configuration; fix trust rather than disabling TLS verification |
 
 On macOS/Linux, substitute `./mvnw` in Maven commands. For startup failures, inspect the first meaningful `Caused by` message; a Maven completion banner alone does not prove the application is running.
-
-## Remaining work
-
-The core backend requirements are implemented. The remaining assignment work is the React catalog, authentication, cart and checkout/order-summary interface.
-
-Further extensions include catalog administration, stock management and payments, cursor pagination and shared session storage for multiple application instances.
