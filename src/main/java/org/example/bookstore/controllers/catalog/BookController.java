@@ -17,6 +17,9 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Exposes the public catalog with bounded page parameters and stable ordering by book ID.
+ */
 @Tag(name = "Catalog", description = "Public book catalog with bounded database pagination.")
 @RestController
 @RequestMapping( "/api/v1/books" )
@@ -25,6 +28,13 @@ public class BookController {
 
 	private final BookService bookService;
 
+	/**
+	 * Returns a catalog page after enforcing page 0–10000 and size 1–100 at the HTTP boundary.
+	 *
+	 * @param page zero-based page number
+	 * @param size requested page capacity
+	 * @return ordered book content and pagination metadata
+	 */
 	@Operation(summary = "List books",
         description = "Sorted by ascending book ID. Defaults: page 0, size 20. Empty catalogs and valid pages beyond the last result return an empty content array with metadata. Page is bounded to 10000; size to 100.",
         responses = {

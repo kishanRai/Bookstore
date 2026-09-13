@@ -10,6 +10,9 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * Persisted catalog entry; Flyway constraints enforce nonblank details, nonnegative prices and EUR currency.
+ */
 @Entity
 @Table( name = "books" )
 @Getter

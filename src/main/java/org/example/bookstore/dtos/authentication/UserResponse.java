@@ -2,6 +2,9 @@ package org.example.bookstore.dtos.authentication;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+/**
+ * Public customer identity returned by registration, login and current-user lookup.
+ */
 @Schema(description = "Public customer details; passwords and hashes are excluded.")
 public record UserResponse(
     @Schema(description = "Customer ID.", example = "1")

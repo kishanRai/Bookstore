@@ -5,6 +5,9 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+/**
+ * Validated registration credentials; its string representation redacts the submitted password.
+ */
 @Schema(description = "New customer credentials. Registration does not start an authenticated session.")
 public record RegistrationRequest(
     @Schema(description = "Email normalized to lowercase.", example = "reader@example.com", format = "email", maxLength = 254)
@@ -15,6 +18,11 @@ public record RegistrationRequest(
     @NotBlank(message = "Password must not be blank") @Size(min = 12, max = 128, message = "Password must be between 12 and 128 characters long")
     String password
 ) {
+    /**
+     * Produces diagnostic text with the password redacted.
+     *
+     * @return a representation that never includes the submitted password
+     */
     @Override
     public String toString() {
         return "RegistrationRequest[REDACTED]";

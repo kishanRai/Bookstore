@@ -9,6 +9,9 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * Persisted customer account holding normalized email and an encoded password, never an HTTP response model.
+ */
 @Entity
 @Table(name = "app_users")
 @Getter
@@ -26,6 +29,12 @@ public class AppUser {
 	private String passwordHash;
 
 
+	/**
+	 * Creates an account from the normalized email and already encoded password supplied by registration.
+	 *
+	 * @param email normalized customer email
+	 * @param passwordHash already encoded password; never a raw password
+	 */
 	public AppUser(String email, String passwordHash) {
 		this.email = email;
 		this.passwordHash = passwordHash;

@@ -15,6 +15,9 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+/**
+ * Historical order line that copies catalog details and quantity rather than retaining a mutable cart reference.
+ */
 @Entity
 @Table( name = "order_items" )
 @Getter
@@ -44,15 +47,27 @@ public class OrderItem {
 	@Column( nullable = false )
 	private int quantity;
 
+	/**
+	 * Copies book identity, descriptive details, price and quantity into a historical order line.
+	 *
+	 * @param order historical order aggregate
+	 * @param item source cart line to snapshot
+	 */
 	public OrderItem( PurchaseOrder order, CartItem item ) {
 		this.order = order;
 		this.bookId = item.getBook().getId();
 		this.title = item.getBook().getTitle();
 		this.author = item.getBook().getAuthor();
 		this.unitPrice = item.getBook().getPrice();
+        item.lineTotal(); // Validate exact monetary precision before copying into a historical order.
 		this.quantity = item.getQuantity();
 	}
 
+	/**
+	 * Calculates the exact total from the saved unit price and purchased quantity.
+	 *
+	 * @return the historical line amount
+	 */
 	public BigDecimal lineTotal() {
 		return unitPrice.multiply( BigDecimal.valueOf( quantity ) );
 	}

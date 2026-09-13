@@ -3,6 +3,9 @@ package org.example.bookstore.dtos.order;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 
+/**
+ * Historical book details, purchased quantity and line total captured at checkout.
+ */
 @Schema(description = "Order line containing book details and price saved at checkout.")
 public record OrderItemResponse(
     @Schema(description = "Historical book ID.", example = "1")

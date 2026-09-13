@@ -3,6 +3,9 @@ package org.example.bookstore.dtos.cart;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 
+/**
+ * Public cart line containing current catalog details, quantity and the server-calculated line total.
+ */
 @Schema(description = "Cart line using current catalog details and prices.")
 public record CartItemResponse(
     @Schema(description = "Catalog book ID.", example = "1")

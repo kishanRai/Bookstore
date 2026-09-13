@@ -26,6 +26,12 @@ import org.springframework.context.annotation.Configuration;
 @Configuration(proxyBeanMethods = false)
 public class OpenApiConfiguration {
 
+    /**
+     * Builds API metadata, session/CSRF schemes and reusable Problem Details schemas.
+     *
+     * @param version version displayed in the OpenAPI document
+     * @return the base OpenAPI document
+     */
     @Bean
     OpenAPI bookstoreOpenApi(@Value("${bookstore.api.version:0.0.1-SNAPSHOT}") String version) {
         var components = new Components()
@@ -53,6 +59,11 @@ public class OpenApiConfiguration {
                 + "All monetary amounts are EUR. Checkout records an order; payments and stock reservation are outside scope."));
     }
 
+    /**
+     * Documents the filter-owned logout route and applies mutation-specific CSRF/security requirements.
+     *
+     * @return the customizer applied to the generated API paths
+     */
     @Bean
     OpenApiCustomizer filterOperationsAndCsrf() {
         return api -> {
@@ -77,6 +88,14 @@ public class OpenApiConfiguration {
         };
     }
 
+    /**
+     * Builds a reusable Problem Details response with an illustrative status and description.
+     *
+     * @param status HTTP status code
+     * @param title client-safe response title
+     * @param description client-safe explanation of the response
+     * @return the OpenAPI error response component
+     */
     private static ApiResponse problem(int status, String title, String description) {
         return new ApiResponse().description(description).content(new Content().addMediaType("application/problem+json",
             new MediaType().schema(new Schema<>().$ref("#/components/schemas/ApiProblem"))

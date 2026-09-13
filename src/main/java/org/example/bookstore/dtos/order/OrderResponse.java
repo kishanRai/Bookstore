@@ -5,6 +5,9 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.time.Instant;
 
+/**
+ * Saved order identity, creation time, historical lines and total returned by checkout or retrieval.
+ */
 @Schema(description = "Saved order summary. Catalog changes do not rewrite these details.")
 public record OrderResponse(
     @Schema(description = "Order ID; visible only to its owner.", example = "1")

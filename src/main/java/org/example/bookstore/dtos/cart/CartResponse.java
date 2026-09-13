@@ -4,6 +4,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Current cart contents and server-calculated totals, including an explicit empty-cart representation.
+ */
 @Schema(description = "Persisted cart; empty carts have no items and zero totals.")
 public record CartResponse(
     @Schema(description = "Up to 100 distinct books ordered by book ID.")

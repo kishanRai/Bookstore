@@ -12,7 +12,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.net.URI;
 import java.util.UUID;
 import org.example.bookstore.dtos.order.OrderResponse;
-import org.example.bookstore.services.order.OrderService;
+import org.example.bookstore.application.order.CheckoutUseCase;
+import org.example.bookstore.controllers.StoreResponseMapper;
+import org.example.bookstore.services.authentication.CurrentUserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Exposes idempotent checkout and owner-restricted retrieval of historical order summaries.
+ */
 @Tag(name = "Orders", description = "Atomic checkout and saved order summaries.")
 @SecurityRequirement(name = "sessionAuth")
 @RestController
@@ -31,8 +36,16 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class OrderController {
 
-	private final OrderService orderService;
+	private final CheckoutUseCase orderService;
+    private final CurrentUserService currentUser;
 
+	/**
+	 * Checks out the authenticated cart using a customer-scoped idempotency key.
+	 *
+	 * @param authentication principal established by Spring Security
+	 * @param idempotencyKey UUID scoped to the customer for checkout retries
+	 * @return status 201 with Location for creation, or status 200 with the saved order for replay
+	 */
 	@Operation(summary = "Check out my cart",
         description = "No request body. Requires a UUID Idempotency-Key. Creates an order with saved book details and prices and clears the cart in one transaction. Reusing the same key for the same customer returns the original order without consuming any newly added cart items. Use a new key for a new purchase. Records an order only; payment and stock reservation are outside scope.",
         responses = {
@@ -45,12 +58,19 @@ public class OrderController {
         })
     @PostMapping
 	public ResponseEntity<OrderResponse> checkout( @Parameter(hidden = true) Authentication authentication, @Parameter(description = "UUID retained for retries of the same purchase; generate a new UUID for each new purchase", required = true, schema = @Schema(type = "string", format = "uuid")) @RequestHeader( "Idempotency-Key" ) UUID idempotencyKey ) {
-		var result = orderService.checkout( authentication, idempotencyKey );
+		var result = orderService.checkout(currentUser.get(authentication).id(), idempotencyKey);
 		return ResponseEntity.status( result.created() ? 201 : 200 )
-			.location( URI.create( "/api/v1/orders/" + result.order().id() ) )
-			.body( result.order() );
+			.location( URI.create( "/api/v1/orders/" + result.order().getId() ) )
+			.body(StoreResponseMapper.order(result.order()));
 	}
 
+	/**
+	 * Returns a saved order only for its authenticated owner.
+	 *
+	 * @param authentication principal established by Spring Security
+	 * @param orderId saved order ID
+	 * @return the historical order summary
+	 */
 	@Operation(summary = "Get my saved order",
         description = "Returns book details and prices captured at checkout. Missing orders and orders belonging to another customer both return 404.",
         responses = {
@@ -61,6 +81,6 @@ public class OrderController {
         })
     @GetMapping( "/{orderId}" )
 	public OrderResponse get( @Parameter(hidden = true) Authentication authentication, @Parameter(description = "Positive order ID returned by checkout", example = "1") @PathVariable @Positive Long orderId ) {
-		return orderService.get( authentication, orderId );
+		return StoreResponseMapper.order(orderService.get(currentUser.get(authentication).id(), orderId));
 	}
 }

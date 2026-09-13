@@ -18,6 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Accepts validated registration requests and returns public customer details without credentials.
+ */
 @Tag(name = "Authentication", description = "Registration, session login, current user and logout.")
 @RestController
 @RequestMapping( "/api/v1/authentication" )
@@ -26,6 +29,12 @@ public class RegistrationController {
 
 	private final RegistrationService registrationService;
 
+	/**
+	 * Creates a validated account without automatically authenticating the new customer.
+	 *
+	 * @param registrationRequest validated email and raw password to register
+	 * @return the newly registered customer's public identity
+	 */
 	@Operation(summary = "Register a customer",
         description = "Creates an account without logging in. Email is normalized to lowercase and must be unique. Password is 12 to 128 characters and is never returned. Requires a session-bound CSRF token.",
         responses = {

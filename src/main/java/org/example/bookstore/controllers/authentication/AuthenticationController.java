@@ -30,6 +30,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Exposes CSRF tokens, JSON session login and the current authenticated customer.
+ */
 @Tag(name = "Authentication", description = "Registration, session login, current user and logout.")
 @RestController
 @RequestMapping("/api/v1/authentication")
@@ -41,6 +44,12 @@ public class AuthenticationController {
 	private final SecurityContextRepository securityContextRepository;
 	private final CurrentUserService currentUserService;
 
+	/**
+	 * Returns the current session's CSRF header name and token for subsequent mutations.
+	 *
+	 * @param token session-bound token provided by Spring Security
+	 * @return the CSRF values the client must send with its session cookie
+	 */
 	@Operation(summary = "Get a CSRF token",
         description = "Retain the session cookie and send the returned headerName and token with mutations. Fetch again after login or logout; the bookstore Swagger page does this automatically.",
         responses = {
@@ -51,6 +60,14 @@ public class AuthenticationController {
 		return new CsrfResponse(token.getHeaderName(), token.getToken());
 	}
 
+	/**
+	 * Authenticates normalized credentials, rotates the session and explicitly persists the security context.
+	 *
+	 * @param body validated credentials submitted by the client
+	 * @param request incoming request whose session is authenticated
+	 * @param response outgoing HTTP response
+	 * @return the authenticated customer's public identity
+	 */
 	@Operation(summary = "Log in",
         description = "Authenticates using email and password, rotates the session ID and clears the previous CSRF token. The browser retains JSESSIONID automatically. Unknown users and incorrect passwords return the same generic 401 response.",
         responses = {
@@ -76,6 +93,12 @@ public class AuthenticationController {
 		return user;
 	}
 
+	/**
+	 * Resolves the customer represented by the current authenticated session.
+	 *
+	 * @param authentication principal established by Spring Security
+	 * @return the public customer identity
+	 */
 	@Operation(summary = "Get the current customer",
         description = "Returns the customer associated with the current session.",
         responses = {

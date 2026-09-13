@@ -1,6 +1,7 @@
 package org.example.bookstore.services.authentication;
 
 import java.util.Locale;
+import org.example.bookstore.application.events.BusinessEvents;
 import org.example.bookstore.dtos.authentication.RegistrationRequest;
 import org.example.bookstore.dtos.authentication.UserResponse;
 import org.example.bookstore.entities.authentication.AppUser;
@@ -14,12 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Normalizes registration email, encodes passwords and persists accounts in a transaction.
+ */
 @Service
 @RequiredArgsConstructor
 public class RegistrationService {
 
 	private final AppUserRepository appUserRepository;
 	private final PasswordEncoder passwordEncoder;
+    private final BusinessEvents events;
 
     /**
      * Normalizes the email and stores an encoded password in one transaction.
@@ -38,7 +43,8 @@ public class RegistrationService {
 
 		try{
 			AppUser savedAppUser = appUserRepository.saveAndFlush( appUser );
-			return new UserResponse( savedAppUser.getId(), savedAppUser.getEmail() );
+			events.afterCommit(BusinessEvents.Type.CUSTOMER_REGISTERED, savedAppUser.getId(), null);
+            return new UserResponse( savedAppUser.getId(), savedAppUser.getEmail() );
 		}
 		catch( DataIntegrityViolationException e ){
 			if (isDuplicateEmail(e)) {
@@ -49,6 +55,12 @@ public class RegistrationService {
 		}
 	}
 
+	/**
+	 * Inspects the exception chain for the specific email uniqueness constraint.
+	 *
+	 * @param exception failure being inspected or translated
+	 * @return whether the failure is caused by duplicate customer email
+	 */
 	private boolean isDuplicateEmail(Throwable exception) {
 		Throwable cause = exception;
 

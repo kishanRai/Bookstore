@@ -10,6 +10,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Reads ordered catalog pages in a read-only transaction and maps them to the public API contract.
+ */
 @Service
 @RequiredArgsConstructor
 public class BookService {

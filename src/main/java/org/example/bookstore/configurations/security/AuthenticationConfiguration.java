@@ -12,9 +12,18 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+/**
+ * Connects normalized customer lookup and password verification to Spring Security.
+ */
 @Configuration(proxyBeanMethods = false)
 public class AuthenticationConfiguration {
 
+	/**
+	 * Adapts normalized email lookup to Spring Security without exposing stored password hashes through the API.
+	 *
+	 * @param appUserRepository repository for persisted customer accounts
+	 * @return the database-backed user lookup strategy
+	 */
 	@Bean
 	UserDetailsService userDetailsService( AppUserRepository  appUserRepository ) {
 		return email -> {
@@ -28,6 +37,13 @@ public class AuthenticationConfiguration {
 		};
 	}
 
+	/**
+	 * Configures DAO authentication and keeps unknown-user failures indistinguishable from wrong passwords.
+	 *
+	 * @param userDetailsService database-backed credential lookup
+	 * @param passwordEncoder encoder used for stored password verification
+	 * @return the authentication manager using the shared password encoder
+	 */
 	@Bean
 	AuthenticationManager authenticationManager(
 		UserDetailsService userDetailsService, PasswordEncoder passwordEncoder) {

@@ -3,6 +3,9 @@ package org.example.bookstore.dtos.catalog;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
+/**
+ * A bounded catalog page with content and catalog-wide pagination metadata.
+ */
 @Schema(description = "Database page sorted by ascending book ID; content may be empty.")
 public record BookPageResponse(
     @Schema(description = "Books on this page, up to size entries.")
