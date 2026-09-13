@@ -1,8 +1,14 @@
 # Bookstore API
 
+![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-brightgreen?logo=springboot&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?logo=postgresql&logoColor=white)
+![Flyway](https://img.shields.io/badge/Flyway-migrations-CC0200?logo=flyway&logoColor=white)
+![Build](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)
+
 A Java 17 / Spring Boot REST API for an online bookstore, with a paginated book catalog, user registration and session authentication backed by PostgreSQL.
 
-**Implemented:** catalog listing, bounded pagination, registration, login, current-user lookup, logout, CSRF protection and API validation. **Next:** shopping cart, checkout/order persistence and the React frontend.
+**Implemented:** catalog listing, bounded pagination, registration, login, current-user lookup, logout, CSRF protection and API validation. 
 
 ## Contents
 
