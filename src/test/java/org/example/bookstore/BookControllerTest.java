@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import java.util.List;
+import org.springframework.context.annotation.Import;
+import org.example.bookstore.configurations.security.SecurityConfiguration;
 import org.example.bookstore.controllers.catalog.BookController;
 import org.example.bookstore.dtos.catalog.BookPageResponse;
 import org.example.bookstore.services.catalog.BookService;
@@ -20,6 +22,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest( BookController.class )
+@Import(SecurityConfiguration.class)
 class BookControllerTest {
 
 	@Autowired

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Bookstore - Ready to Test",
-    "description": "Self-contained local API tests. Import this single file and select No environment. baseUrl defaults to http://localhost:8080 in collection Variables. Start PostgreSQL and Spring Boot with the local profile. Send Ops > Health Check, then Catalog > Get Books, then run Authentication > Registration in numbered order. A complete registration run creates three test accounts. Registration does not log in. Examples are illustrative. Catalog uses bounded pagination: page 0..10000, size 1..100, defaults 0 and 20, ordered by ID ascending.\n\nEMAIL VARIABLES\nSelect No environment and keep requests inside this collection. First send Authentication > Registration > 01 - Register user successfully. Its pre-request script generates registrationEmail automatically; do not replace it with registeredEmail in request 01. A 201 response saves registeredEmail, registeredUserId and registeredPassword in collection Variables. To reuse the saved account in another request in this collection, use Body > raw > JSON:\n{ \"email\": \"{{registeredEmail}}\", \"password\": \"{{registeredPassword}}\" }\nSending this saved account to POST /api/v1/authentication/register intentionally returns 409 because the account already exists. Requests 02 and 03 do this automatically (03 uses uppercase). Send 01 before either duplicate test. registeredEmail and registrationEmail are different, case-sensitive variable names. Hover over {{registeredEmail}} or open collection Variables to inspect the saved value. If unresolved, ensure request 01 returned 201 and its post-response script ran; select No environment to avoid environment overrides. No login endpoint is included in this collection yet.",
+    "description": "Self-contained local API tests. Import this single file and select No environment. baseUrl defaults to http://localhost:8080 in collection Variables. Start PostgreSQL and Spring Boot with the local profile. Send Ops > Health Check, then Catalog > Get Books, then run Authentication > Registration in numbered order. A complete registration run creates three test accounts. Registration does not log in. Examples are illustrative. Catalog uses bounded pagination: page 0..10000, size 1..100, defaults 0 and 20, ordered by ID ascending.\n\nEMAIL VARIABLES\nSelect No environment and keep requests inside this collection. First send Authentication > Registration > 01 - Register user successfully. Its pre-request script generates registrationEmail automatically; do not replace it with registeredEmail in request 01. A 201 response saves registeredEmail, registeredUserId and registeredPassword in collection Variables. To reuse the saved account in another request in this collection, use Body > raw > JSON:\n{ \"email\": \"{{registeredEmail}}\", \"password\": \"{{registeredPassword}}\" }\nSending this saved account to POST /api/v1/authentication/register intentionally returns 409 because the account already exists. Requests 02 and 03 do this automatically (03 uses uppercase). Send 01 before either duplicate test. registeredEmail and registrationEmail are different, case-sensitive variable names. Hover over {{registeredEmail}} or open collection Variables to inspect the saved value. If unresolved, ensure request 01 returned 201 and its post-response script ran; select No environment to avoid environment overrides. The Session folder contains login, current-user and logout requests; run Registration before Session.\n\nSESSION SECURITY: Each POST/PUT/PATCH/DELETE first fetches /api/v1/authentication/csrf in a collection pre-request script and adds its returned header/token. Keep Postman cookies enabled, select No environment, and run Registration before Session. Session login reuses the account saved by registration request 01. No bearer token is used. Login and logout rotate/clear CSRF state, so a fresh token is fetched for every mutation. These session requests require the login implementation to be installed first.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -216,7 +216,7 @@
       "item": [
         {
           "name": "Registration",
-          "description": "Run this folder in its numbered order against the local application. The implementation currently uses POST /api/v1/authentication/register. Expect 201 for requests 01, 14, 15; 409 for 02, 03; and 400 for 04 through 13. Each complete run creates three persistent test accounts. Request 01 uses a fresh GUID email, so reruns do not require database cleanup. Duplicate cases depend on a successful request 01. Saved responses are illustrative, not captured execution results. Tests cover HTTP behavior, not database password-hash verification; that remains covered by RegistrationIntegrationTest. No login session or CSRF token is required by the current implementation. This folder will need updating when session security is added.",
+          "description": "Run this folder in its numbered order against the local application. The implementation currently uses POST /api/v1/authentication/register. Expect 201 for requests 01, 14, 15; 409 for 02, 03; and 400 for 04 through 13. Each complete run creates three persistent test accounts. Request 01 uses a fresh GUID email, so reruns do not require database cleanup. Duplicate cases depend on a successful request 01. Saved responses are illustrative, not captured execution results. Tests cover HTTP behavior, not database password-hash verification; that remains covered by RegistrationIntegrationTest. No login session is required. The collection pre-request script obtains a CSRF token automatically.",
           "item": [
             {
               "name": "01 - Register user successfully",
@@ -2083,6 +2083,144 @@
               ]
             }
           ]
+        },
+        {
+          "name": "Session",
+          "description": "Run after Registration. Postman retains JSESSIONID automatically; collection scripts fetch CSRF tokens. These scripts do not store passwords or session cookies in the exported file.",
+          "item": [
+            {
+              "name": "01 - Login with registered account",
+              "request": {
+                "method": "POST",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/authentication/login",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{registeredEmail}}\",\n  \"password\": \"{{registeredPassword}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.collectionVariables.get(\"registeredEmail\") || !pm.collectionVariables.get(\"registeredPassword\")) { pm.execution.skipRequest(); throw new Error(\"Run Registration request 01 successfully first.\"); }"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.equal(200); });",
+                      "pm.test(\"Returns registered user without credentials\", function () { const body = pm.response.json(); pm.expect(body.email).to.equal(pm.collectionVariables.get(\"registeredEmail\")); pm.expect(JSON.stringify(Object.keys(body).sort())).to.equal('[\"email\",\"id\"]'); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "02 - Read current user",
+              "request": {
+                "method": "GET",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/authentication/me"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 200\", function () { pm.expect(pm.response.code).to.equal(200); });",
+                      "pm.test(\"Session belongs to registered user\", function () { pm.expect(pm.response.json().email).to.equal(pm.collectionVariables.get(\"registeredEmail\")); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "03 - Logout",
+              "request": {
+                "method": "POST",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/authentication/logout"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 204\", function () { pm.expect(pm.response.code).to.equal(204); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "04 - Reject current-user request after logout",
+              "request": {
+                "method": "GET",
+                "auth": {
+                  "type": "noauth"
+                },
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/v1/authentication/me"
+              },
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"HTTP 401\", function () { pm.expect(pm.response.code).to.equal(401); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
         }
       ]
     }
@@ -2111,5 +2249,31 @@
   ],
   "auth": {
     "type": "noauth"
-  }
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if ([\"POST\", \"PUT\", \"PATCH\", \"DELETE\"].includes(pm.request.method)) {",
+          "    const response = await pm.sendRequest({",
+          "        url: pm.variables.replaceIn(\"{{baseUrl}}/api/v1/authentication/csrf\"),",
+          "        method: \"GET\"",
+          "    });",
+          "    if (response.code !== 200) {",
+          "        pm.execution.skipRequest();",
+          "        throw new Error(\"CSRF request failed. Start the updated application and check its health.\");",
+          "    }",
+          "    const csrf = response.json();",
+          "    if (!csrf.headerName || !csrf.token) {",
+          "        pm.execution.skipRequest();",
+          "        throw new Error(\"CSRF response did not contain headerName and token.\");",
+          "    }",
+          "    pm.request.headers.upsert({ key: csrf.headerName, value: csrf.token });",
+          "}"
+        ]
+      }
+    }
+  ]
 }
