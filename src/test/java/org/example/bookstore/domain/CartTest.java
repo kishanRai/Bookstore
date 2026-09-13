@@ -1,7 +1,6 @@
 package org.example.bookstore.domain;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,6 +10,7 @@ import org.example.bookstore.entities.catalog.Book;
 import org.example.bookstore.exceptions.CartConflictException;
 import org.example.bookstore.exceptions.InvalidCartQuantityException;
 import org.example.bookstore.exceptions.ResourceNotFoundException;
+import org.example.bookstore.support.BookTestDataBuilder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -20,13 +20,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 class CartTest {
     static Book book(long id, String price) {
-        Book book = mock(Book.class);
-        when(book.getId()).thenReturn(id);
-        when(book.getTitle()).thenReturn("Book " + id);
-        when(book.getAuthor()).thenReturn("Author");
-        when(book.getPrice()).thenReturn(new BigDecimal(price));
-        when(book.getCurrency()).thenReturn("EUR");
-        return book;
+        return BookTestDataBuilder.aBook().withId(id).withPrice(price).build();
     }
 
     @Test void emptyCartHasExactZeroAndCannotCheckOut() {
