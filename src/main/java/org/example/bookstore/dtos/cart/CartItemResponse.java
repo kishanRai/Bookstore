@@ -1,7 +1,26 @@
 package org.example.bookstore.dtos.cart;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 
-public record CartItemResponse(Long bookId, String title, String author,
-							   BigDecimal unitPrice, int quantity, BigDecimal lineTotal
-){}
+@Schema(description = "Cart line using current catalog details and prices.")
+public record CartItemResponse(
+    @Schema(description = "Catalog book ID.", example = "1")
+    Long bookId,
+
+    @Schema(description = "Book title.", example = "Clean Code")
+    String title,
+
+    @Schema(description = "Book author.", example = "Robert C. Martin")
+    String author,
+
+    @Schema(description = "Price per copy in EUR.", example = "35.00", minimum = "0")
+    BigDecimal unitPrice,
+
+    @Schema(description = "Number of copies.", example = "2", minimum = "1", maximum = "99")
+    int quantity,
+
+    @Schema(description = "Unit price multiplied by quantity.", example = "70.00", minimum = "0")
+    BigDecimal lineTotal
+) {
+}

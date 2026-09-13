@@ -70,6 +70,8 @@ public class SecurityConfiguration {
 			.httpBasic( AbstractHttpConfigurer::disable )
 			.authorizeHttpRequests( authorize -> authorize.dispatcherTypeMatchers( DispatcherType.ERROR )
 				.permitAll()
+				.requestMatchers( HttpMethod.GET, "/docs/**", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml" )
+				.permitAll()
 				.requestMatchers( HttpMethod.GET, "/api/v1/books", "/actuator/health", "/actuator/health/**", "/api/v1/authentication/csrf" )
 				.permitAll()
 				.requestMatchers( HttpMethod.POST, "/api/v1/authentication/register", "/api/v1/authentication/login" )

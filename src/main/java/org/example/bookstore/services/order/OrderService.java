@@ -27,6 +27,19 @@ public class OrderService {
 	public record CheckoutResult(OrderResponse order, boolean created) {
 	}
 
+    /**
+     * Places an order and clears the customer's cart in one database transaction.
+     * The customer-row lock serializes this operation with all cart mutations.
+     * An existing key is checked before reading the cart: retries return the saved
+     * order and leave any newly filled cart untouched. Keys are retained with the order.
+     * Book details and prices are copied into order lines; catalog changes do not
+     * rewrite historical orders. Failure during persistence or cart deletion rolls back both.
+     *
+     * @param authentication trusted customer principal
+     * @param idempotencyKey UUID reused for retries of one purchase, scoped to the customer
+     * @return saved order and whether this request created it
+     * @throws CartConflictException when a new key is used with an empty cart
+     */
 	@Transactional( isolation = Isolation.READ_COMMITTED )
 	public CheckoutResult checkout( Authentication authentication, UUID idempotencyKey ) {
 		Long userId = currentUser.lockCartOwner( authentication );
@@ -44,6 +57,15 @@ public class OrderService {
 		return new CheckoutResult( response( order ), true );
 	}
 
+    /**
+     * Reads a saved summary using both order ID and authenticated customer ID.
+     * Missing and foreign orders produce the same not-found result.
+     *
+     * @param authentication trusted customer principal
+     * @param orderId requested order ID
+     * @return the owner's saved order summary
+     * @throws ResourceNotFoundException when no order belongs to this customer with that ID
+     */
 	@Transactional( readOnly = true )
 	public OrderResponse get( Authentication authentication, Long orderId ) {
 		Long userId = currentUser.get( authentication ).id();

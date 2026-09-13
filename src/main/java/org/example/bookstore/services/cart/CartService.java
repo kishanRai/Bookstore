@@ -17,6 +17,13 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Manages a customer's persisted cart using current catalog prices.
+ * Every operation locks the customer row, including reads, to serialize cart access
+ * with checkout. This deliberately trades per-customer concurrency for simple consistency.
+ * HTTP validation bounds individual quantities; this service also enforces the combined
+ * limit of 99 copies per book and 100 distinct books. Prices and ownership come from the server.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional( isolation = Isolation.READ_COMMITTED )

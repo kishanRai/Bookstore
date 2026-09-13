@@ -1,5 +1,13 @@
 package org.example.bookstore.controllers.cart;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import org.example.bookstore.dtos.cart.AddCartItemRequest;
 import org.example.bookstore.dtos.cart.CartResponse;
 import org.example.bookstore.dtos.cart.UpdateCartItemRequest;
@@ -19,6 +27,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
 
+@Tag(name = "Cart", description = "Persisted cart belonging to the authenticated customer.")
+@SecurityRequirement(name = "sessionAuth")
 @RestController
 @RequestMapping( "/api/v1/cart" )
 @RequiredArgsConstructor
@@ -26,25 +36,58 @@ public class CartController {
 
 	private final CartService cartService;
 
-	@GetMapping
-	public CartResponse get( Authentication authentication ) {
+	@Operation(summary = "Get my cart",
+        description = "Returns items ordered by book ID, current catalog prices and server-calculated EUR totals. An empty cart returns empty items and zero totals.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Current cart", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CartResponse.class))),
+            @ApiResponse(responseCode = "401", ref = "#/components/responses/Error401")
+        })
+    @GetMapping
+	public CartResponse get( @Parameter(hidden = true) Authentication authentication ) {
 		return cartService.get( authentication );
 	}
 
-	@PostMapping( "/items" )
-	public CartResponse add( Authentication authentication, @Valid @RequestBody AddCartItemRequest request ) {
+	@Operation(summary = "Add copies to my cart",
+        description = "Adds quantity to an existing line or creates a line. Each line supports 1 to 99 copies; the cart supports at most 100 distinct books. Repeating this POST adds copies again. Exceeding the combined quantity or capacity returns 409.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Updated cart", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CartResponse.class))),
+            @ApiResponse(responseCode = "400", ref = "#/components/responses/Error400"),
+            @ApiResponse(responseCode = "401", ref = "#/components/responses/Error401"),
+            @ApiResponse(responseCode = "403", ref = "#/components/responses/Error403"),
+            @ApiResponse(responseCode = "404", ref = "#/components/responses/Error404"),
+            @ApiResponse(responseCode = "409", ref = "#/components/responses/Error409")
+        })
+    @PostMapping( "/items" )
+	public CartResponse add( @Parameter(hidden = true) Authentication authentication, @Valid @RequestBody AddCartItemRequest request ) {
 		return cartService.add( authentication, request );
 	}
 
-	@PutMapping( "/items/{bookId}" )
-	public CartResponse update( Authentication authentication, @PathVariable @Positive Long bookId,
+	@Operation(summary = "Set a cart quantity",
+        description = "Replaces the quantity of an existing cart item with an integer from 1 to 99. A missing line returns 404. Use DELETE to remove an item.",
+        responses = {
+            @ApiResponse(responseCode = "200", description = "Updated cart", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CartResponse.class))),
+            @ApiResponse(responseCode = "400", ref = "#/components/responses/Error400"),
+            @ApiResponse(responseCode = "401", ref = "#/components/responses/Error401"),
+            @ApiResponse(responseCode = "403", ref = "#/components/responses/Error403"),
+            @ApiResponse(responseCode = "404", ref = "#/components/responses/Error404")
+        })
+    @PutMapping( "/items/{bookId}" )
+	public CartResponse update( @Parameter(hidden = true) Authentication authentication, @Parameter(description = "Positive book ID from the catalog", example = "1") @PathVariable @Positive Long bookId,
 								@Valid @RequestBody UpdateCartItemRequest request ) {
 		return cartService.update( authentication, bookId, request );
 	}
 
-	@DeleteMapping( "/items/{bookId}" )
+	@Operation(summary = "Remove a cart item",
+        description = "Removes only the current customer's line. Repeating removal of an absent item also returns 204.",
+        responses = {
+            @ApiResponse(responseCode = "204", description = "Item absent; no response body", content = @Content),
+            @ApiResponse(responseCode = "400", ref = "#/components/responses/Error400"),
+            @ApiResponse(responseCode = "401", ref = "#/components/responses/Error401"),
+            @ApiResponse(responseCode = "403", ref = "#/components/responses/Error403")
+        })
+    @DeleteMapping( "/items/{bookId}" )
 	@ResponseStatus( HttpStatus.NO_CONTENT )
-	public void remove( Authentication authentication, @PathVariable @Positive Long bookId ) {
+	public void remove( @Parameter(hidden = true) Authentication authentication, @Parameter(description = "Positive book ID from the catalog", example = "1") @PathVariable @Positive Long bookId ) {
 		cartService.remove( authentication, bookId );
 	}
 }

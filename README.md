@@ -6,13 +6,14 @@
 ![Flyway](https://img.shields.io/badge/Flyway-migrations-CC0200?logo=flyway&logoColor=white)
 ![Build](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)
 
-A Java 17 / Spring Boot REST API for an online bookstore, with a paginated book catalog, user registration and session authentication backed by PostgreSQL.
+A Java 17 / Spring Boot REST API for an online bookstore, with a paginated book catalog, user registration, session authentication, persisted shopping carts and transactional order checkout backed by PostgreSQL.
 
 **Implemented:** catalog listing, bounded pagination, registration, login, current-user lookup, logout, CSRF protection, API validation, persisted carts and order checkout.
 
 ## Contents
 
 - [Run from a new machine](#run-from-a-new-machine)
+- [Explore with Swagger UI](#explore-with-swagger-ui)
 - [Test with Postman](#test-with-postman)
 - [API reference](#api-reference)
 - [Cart and checkout](#cart-and-checkout)
@@ -111,11 +112,46 @@ docker compose exec -T postgres psql -U bookstore -d bookstore -c "INSERT INTO b
 
 The demo command avoids inserting another matching row when rerun sequentially. Actual IDs are assigned by PostgreSQL.
 
-### 7. Run the API collection
+### 7. Exercise the backend
 
-Follow [Test with Postman](#test-with-postman) below to register an account and exercise login/logout.
+Open [Swagger UI](http://localhost:8080/docs/index.html) for interactive API documentation and follow [Explore with Swagger UI](#explore-with-swagger-ui). Alternatively, follow [Test with Postman](#test-with-postman) to run the supplied assertions for registration, authentication, cart and checkout.
 
 To stop local development, press `Ctrl+C` in the application terminal, then run `docker compose down`. The database volume is retained for the next start.
+
+## Explore with Swagger UI
+
+Start the application using setup steps 1–6, then open **[Bookstore Swagger UI](http://localhost:8080/docs/index.html)** in your browser. The page uses Swagger assets bundled with the Maven dependency; no CDN or separate frontend build is required.
+
+| Resource | Local URL | Purpose |
+|---|---|---|
+| Swagger UI | [`/docs/index.html`](http://localhost:8080/docs/index.html) | Interactive documentation with automatic CSRF handling |
+| OpenAPI JSON | [`/v3/api-docs`](http://localhost:8080/v3/api-docs) | Machine-readable HTTP API contract |
+| OpenAPI YAML | [`/v3/api-docs.yaml`](http://localhost:8080/v3/api-docs.yaml) | The same contract in YAML format |
+
+Expand an operation, select **Try it out**, enter its parameters/body, then select **Execute**. The catalog, authentication, cart and order sections include request/response schemas, field examples, pagination and quantity limits, and expected error responses. Health remains available at `/actuator/health` as described in setup; the generated contract covers the business API under `/api/v1`.
+
+### Browser walkthrough
+
+1. **Catalog → GET /api/v1/books:** fetch available books and note a returned ID. Seed the demo book from setup step 6 if the catalog is empty.
+2. **Authentication → POST /register:** enter your own unused email and a password of 12–128 characters. Expect `201`. If already registered, continue with login.
+3. **Authentication → POST /login:** enter the same credentials. Expect `200`, then call **GET /me** to confirm the session.
+4. **Cart → POST /api/v1/cart/items:** use the catalog ID and `quantity: 2`. Inspect **GET /api/v1/cart**; use PUT to replace quantity or DELETE to remove a line.
+5. **Orders → POST /api/v1/orders:** leave the body empty and enter a UUID in **Idempotency-Key**. In PowerShell generate one with `[guid]::NewGuid().ToString()`; in the browser console use `crypto.randomUUID()`. A nonempty cart returns `201` and its saved order summary.
+6. Execute checkout again with the **same UUID**: expect `200` and the same order. Use **GET /api/v1/orders/{orderId}** with its ID to retrieve it. Generate a new UUID for a subsequent purchase.
+7. **Authentication → POST /logout:** expect `204`. **GET /me** now returns `401`.
+
+The browser retains the HttpOnly `JSESSIONID` cookie. **Use the login operation to authenticate; no value needs to be pasted into Authorize.** The bookstore Swagger page fetches `/api/v1/authentication/csrf` with the same session before every POST, PUT, PATCH or DELETE and sends the returned `X-CSRF-TOKEN`. This also refreshes the token after login/logout. CSRF checks remain enabled for every client. Open `/docs/index.html` for this behavior; the dependency's default `/swagger-ui/index.html` does not include the bookstore interceptor.
+
+Swagger and Postman have separate cookie jars, so log in separately in each. Use the same browser tab/host throughout. These requests change the database just like Postman requests: registrations and completed orders persist. Swagger's generated curl snippets do not carry the browser's HttpOnly session cookie; terminal clients must retain cookies and fetch CSRF as described under [Session and CSRF flow for other clients](#session-and-csrf-flow-for-other-clients).
+
+### Maintaining documentation
+
+- Controller OpenAPI annotations describe operations and status codes; DTO schema annotations and Jakarta validation describe bodies and limits.
+- `OpenApiConfiguration` defines session/CSRF schemes, reusable Problem Details responses and logout, which is implemented by Spring Security's filter rather than a controller.
+- Focused Javadoc on catalog, registration, cart, checkout and customer locking explains transaction boundaries and design tradeoffs. A generated HTML Javadoc site is not required to run the application.
+- Keep this README, the generated contract and the Postman collection aligned when changing an endpoint. The OpenAPI integration test checks documentation availability and key contracts.
+
+The project uses [springdoc-openapi](https://springdoc.org/) `3.1.1` for Spring Boot 4, with [Swagger UI's request interceptor](https://swagger.io/docs/open-source-tools/swagger-ui/usage/configuration/) for the browser CSRF flow.
 
 ## Test with Postman
 
@@ -388,6 +424,7 @@ Applied Flyway migrations must remain unchanged, including formatting. Add a new
 | `RegistrationIntegrationTest` | Registration, stored password hashing, case-insensitive duplicates and validation, with CSRF tokens |
 | `AuthenticationIntegrationTest` | Login, normalization, session rotation/persistence, wrong credentials, unknown users, anonymous access, missing CSRF and logout |
 | `CartCheckoutIntegrationTest` | Cart operations, limits, owner isolation, snapshots, idempotency, concurrent updates and transaction rollback |
+| `OpenApiIntegrationTest` | Public documentation/assets, endpoint schemas, security requirements and CSRF session flow |
 | `BookstoreApplicationTests` | Application-context startup |
 
 Integration tests use `PostgresTestConfiguration` and `@ServiceConnection`; they apply the real Flyway migrations to disposable PostgreSQL containers. Authentication tests obtain CSRF tokens from the endpoint and reuse sessions across requests. Catalog MVC tests use `@WebMvcTest`; database integration tests use `@SpringBootTest` with MockMvc.
@@ -399,6 +436,14 @@ Run the full suite with the build command in setup step 3. For focused authentic
 ```
 
 Use `./mvnw` instead of `.\mvnw.cmd` on macOS/Linux. Test reports are generated under `target/surefire-reports/`. Test coverage described here is not a substitute for a successful verification run of the revision being reviewed.
+
+For documentation changes, run `.\mvnw.cmd "-Dtest=OpenApiIntegrationTest" test`. The small browser request interceptor also has optional tests using Node.js 22 or later:
+
+```shell
+node --test src/test/javascript/bookstore-docs.test.cjs
+```
+
+These JavaScript tests use Node's built-in test runner with no npm dependencies. Node is not required to build or run the backend; Java integration tests run in the normal Maven suite.
 
 ## Configuration
 
@@ -412,6 +457,7 @@ Use `./mvnw` instead of `.\mvnw.cmd` on macOS/Linux. Test reports are generated 
 | Session cookie | `HttpOnly=true`, `SameSite=Lax` |
 | Open Session in View | Disabled |
 | Exposed actuator endpoint | Health; internal health details hidden |
+| API documentation | Public GET access to Swagger assets/page and OpenAPI JSON/YAML |
 
 [`application.properties`](src/main/resources/application.properties) contains shared settings; [`application-local.properties`](src/main/resources/application-local.properties) selects the Compose database. Without `local` or separately supplied datasource settings, a standalone application has no configured database. Tests provide their own connection.
 
@@ -426,6 +472,7 @@ Sessions are currently stored in the application process, so restarting signs us
 | Database port already allocated | Free port `15432`, or change the Compose host port and the local datasource URL together |
 | Application port 8080 already allocated | Stop the earlier application process; avoid running Maven and IntelliJ instances simultaneously |
 | Flyway checksum mismatch | Compare the applied migration with Git history and restore unintended edits; put intended schema changes in a new migration |
+| Swagger mutation returns `403` | Use `/docs/index.html`, keep the same host/session and check the browser network panel for the CSRF request |
 | POST returns `403` | Obtain a fresh CSRF token using the same cookie jar; refresh it after login/logout and keep collection scripts enabled |
 | `/me` returns `401` after login | Retain the updated session cookie, use the same host, and enable browser credentials or Postman's cookie jar |
 | `registeredEmail` is unresolved | Run registration request 01 successfully, keep requests in the same collection, and select No environment |
@@ -439,4 +486,4 @@ On macOS/Linux, substitute `./mvnw` in Maven commands. For startup failures, ins
 
 The core backend requirements are implemented. The remaining assignment work is the React catalog, authentication, cart and checkout/order-summary interface.
 
-Further extensions include catalog administration, stock management and payments, cursor pagination, API documentation generation, CI automation and shared session storage for multiple application instances.
+Further extensions include catalog administration, stock management and payments, cursor pagination, CI automation and shared session storage for multiple application instances.

@@ -21,6 +21,15 @@ public class RegistrationService {
 	private final AppUserRepository appUserRepository;
 	private final PasswordEncoder passwordEncoder;
 
+    /**
+     * Normalizes the email and stores an encoded password in one transaction.
+     * The database unique constraint arbitrates concurrent registrations; only an
+     * email-constraint violation is translated to a duplicate-account error.
+     *
+     * @param registrationRequest validated email and password; password is not normalized
+     * @return public customer details, without password or hash
+     * @throws EmailAlreadyRegisteredException when the normalized email already exists
+     */
 	@Transactional
 	public UserResponse register( RegistrationRequest registrationRequest ){
 		String email = registrationRequest.email().strip().toLowerCase( Locale.ROOT );

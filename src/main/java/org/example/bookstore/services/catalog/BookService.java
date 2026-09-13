@@ -16,6 +16,16 @@ public class BookService {
 
 	private final BookRepository bookRepository;
 
+    /**
+     * Queries one database page ordered by ID and maps entities to public DTOs.
+     * Bounds are validated at the HTTP boundary (page 0..10000, size 1..100).
+     * Offset pagination and total counts can still become expensive at large offsets;
+     * separate page requests do not share a catalog snapshot.
+     *
+     * @param page zero-based page number
+     * @param size requested page capacity
+     * @return content and catalog-wide pagination metadata, including empty pages
+     */
 	@Transactional( readOnly = true )
 	public BookPageResponse getBooks( int page, int size ) {
 		PageRequest pageRequest = PageRequest.of( page, size, Sort.by( "id" ).ascending() );

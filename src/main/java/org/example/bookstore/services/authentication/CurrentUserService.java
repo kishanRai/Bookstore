@@ -21,7 +21,16 @@ public class CurrentUserService {
 		return new UserResponse(user.getId(), user.getEmail());
 	}
 
-	// The caller owns the transaction; this lock lasts until it commits or rolls back.
+    /**
+     * Locks the authenticated customer's row until the caller's transaction ends.
+     * All cart operations and checkout acquire this same lock, including an empty cart,
+     * so concurrent requests for one customer cannot lose updates or create duplicate orders.
+     * Different customers lock different rows. This does not lock catalog prices.
+     *
+     * @param authentication trusted principal supplied by Spring Security
+     * @return persisted customer ID used for ownership checks
+     * @throws org.springframework.transaction.IllegalTransactionStateException when no transaction exists
+     */
 	@Transactional(propagation = Propagation.MANDATORY)
 	public Long lockCartOwner(Authentication authentication) {
 		return appUserRepository.findByEmailForUpdate(authentication.getName())
