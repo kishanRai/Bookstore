@@ -1,0 +1,2115 @@
+{
+  "info": {
+    "name": "Bookstore - Ready to Test",
+    "description": "Self-contained local API tests. Import this single file and select No environment. baseUrl defaults to http://localhost:8080 in collection Variables. Start PostgreSQL and Spring Boot with the local profile. Send Ops > Health Check, then Catalog > Get Books, then run Authentication > Registration in numbered order. A complete registration run creates three test accounts. Registration does not log in. Examples are illustrative. Catalog uses bounded pagination: page 0..10000, size 1..100, defaults 0 and 20, ordered by ID ascending.\n\nEMAIL VARIABLES\nSelect No environment and keep requests inside this collection. First send Authentication > Registration > 01 - Register user successfully. Its pre-request script generates registrationEmail automatically; do not replace it with registeredEmail in request 01. A 201 response saves registeredEmail, registeredUserId and registeredPassword in collection Variables. To reuse the saved account in another request in this collection, use Body > raw > JSON:\n{ \"email\": \"{{registeredEmail}}\", \"password\": \"{{registeredPassword}}\" }\nSending this saved account to POST /api/v1/authentication/register intentionally returns 409 because the account already exists. Requests 02 and 03 do this automatically (03 uses uppercase). Send 01 before either duplicate test. registeredEmail and registrationEmail are different, case-sensitive variable names. Hover over {{registeredEmail}} or open collection Variables to inspect the saved value. If unresolved, ensure request 01 returned 201 and its post-response script ran; select No environment to avoid environment overrides. No login endpoint is included in this collection yet.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Ops",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            },
+            "description": "Liveness/readiness probe exposed via Spring Boot Actuator."
+          },
+          "response": [
+            {
+              "name": "200 OK - UP",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/actuator/health",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "actuator",
+                    "health"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n    \"status\": \"UP\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Catalog",
+      "item": [
+        {
+          "name": "Get Books",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Returns a page object with content, page, size, totalElements, totalPages and hasNext. page: 0..10000; size: 1..100. Empty and beyond-last pages return 200 with empty content. Invalid pagination returns 400."
+          },
+          "response": [
+            {
+              "name": "200 OK - Books found",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/books?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "books"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Returns a page object with content, page, size, totalElements, totalPages and hasNext. page: 0..10000; size: 1..100. Empty and beyond-last pages return 200 with empty content. Invalid pagination returns 400."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"content\": [\n    {\n      \"id\": 1,\n      \"title\": \"Harry Potter and the Philosopher's Stone\",\n      \"author\": \"J.K. Rowling\",\n      \"price\": 45.5,\n      \"currency\": \"EUR\"\n    },\n    {\n      \"id\": 2,\n      \"title\": \"Harry Potter and the Chamber of Secrets\",\n      \"author\": \"J.K. Rowling\",\n      \"price\": 39.9,\n      \"currency\": \"EUR\"\n    }\n  ],\n  \"page\": 0,\n  \"size\": 20,\n  \"totalElements\": 2,\n  \"totalPages\": 1,\n  \"hasNext\": false\n}"
+            },
+            {
+              "name": "200 OK - Empty catalog",
+              "originalRequest": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/books?page=0&size=20",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "books"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "0"
+                    },
+                    {
+                      "key": "size",
+                      "value": "20"
+                    }
+                  ]
+                },
+                "description": "Returns a page object with content, page, size, totalElements, totalPages and hasNext. page: 0..10000; size: 1..100. Empty and beyond-last pages return 200 with empty content. Invalid pagination returns 400."
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"content\": [],\n  \"page\": 0,\n  \"size\": 20,\n  \"totalElements\": 0,\n  \"totalPages\": 0,\n  \"hasNext\": false\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200 OK\", function () {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "});",
+                  "pm.test(\"Catalog returns a bounded page object\", function () {",
+                  "    const body = pm.response.json();",
+                  "    pm.expect(Array.isArray(body.content)).to.equal(true);",
+                  "    pm.expect(Number.isInteger(body.page) && body.page >= 0).to.equal(true);",
+                  "    pm.expect(Number.isInteger(body.size) && body.size >= 1 && body.size <= 100).to.equal(true);",
+                  "    pm.expect(body.content.length <= body.size).to.equal(true);",
+                  "    pm.expect(Number.isInteger(body.totalElements) && body.totalElements >= 0).to.equal(true);",
+                  "    pm.expect(Number.isInteger(body.totalPages) && body.totalPages >= 0).to.equal(true);",
+                  "    pm.expect(typeof body.hasNext).to.equal(\"boolean\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Registration",
+          "description": "Run this folder in its numbered order against the local application. The implementation currently uses POST /api/v1/authentication/register. Expect 201 for requests 01, 14, 15; 409 for 02, 03; and 400 for 04 through 13. Each complete run creates three persistent test accounts. Request 01 uses a fresh GUID email, so reruns do not require database cleanup. Duplicate cases depend on a successful request 01. Saved responses are illustrative, not captured execution results. Tests cover HTTP behavior, not database password-hash verification; that remains covered by RegistrationIntegrationTest. No login session or CSRF token is required by the current implementation. This folder will need updating when session security is added.",
+          "item": [
+            {
+              "name": "01 - Register user successfully",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.collectionVariables.unset(\"registeredEmail\");",
+                      "pm.collectionVariables.unset(\"registeredUserId\");",
+                      "pm.collectionVariables.unset(\"registeredPassword\");",
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 201 Created\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(201);",
+                      "});",
+                      "pm.test(\"Content type is JSON\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/json\")).to.equal(true);",
+                      "});",
+                      "pm.test(\"Response contains only a positive user ID and normalized email\", function () {",
+                      "    const body = pm.response.json();",
+                      "    const sent = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                      "    pm.expect(JSON.stringify(Object.keys(body).sort())).to.equal('[\"email\",\"id\"]');",
+                      "    pm.expect(Number.isInteger(body.id) && body.id > 0).to.equal(true);",
+                      "    pm.expect(body.email).to.equal(sent.email.toLowerCase());",
+                      "});",
+                      "pm.test(\"Response does not disclose the submitted password\", function () {",
+                      "    const sent = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                      "    pm.expect(pm.response.text().includes(sent.password)).to.equal(false);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const body = pm.response.json();",
+                      "    if (typeof body.email === \"string\" && Number.isInteger(body.id) && body.id > 0) {",
+                      "        const sent = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                      "        pm.collectionVariables.set(\"registeredEmail\", body.email);",
+                      "        pm.collectionVariables.set(\"registeredUserId\", String(body.id));",
+                      "        pm.collectionVariables.set(\"registeredPassword\", sent.password);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Creates a new account using a fresh mixed-case GUID email on every send. Checks lowercase email, positive ID, and absence of credentials in the response. Saves registeredEmail, registeredUserId, and registeredPassword for subsequent local tests. This is a test-only password. Registration does not log the user in."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 201 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Creates a new account using a fresh mixed-case GUID email on every send. Checks lowercase email, positive ID, and absence of credentials in the response. Saves registeredEmail, registeredUserId, and registeredPassword for subsequent local tests. This is a test-only password. Registration does not log the user in."
+                  },
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"id\": 101,\n  \"email\": \"reader.example@example.com\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "02 - Reject duplicate email",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const email = pm.collectionVariables.get(\"registeredEmail\");",
+                      "if (!email) {",
+                      "    console.warn(\"Run 01 - Register user successfully before this duplicate-email request.\");",
+                      "    pm.execution.skipRequest();",
+                      "} else {",
+                      "    pm.variables.set(\"registrationEmail\", email);",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 409\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(409);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(409);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Run request 01 first. Reuses its successfully registered email and expects 409. Skipped with a console message if no successful registration is available."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 409 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Run request 01 first. Reuses its successfully registered email and expects 409. Skipped with a console message if no successful registration is available."
+                  },
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Conflict\",\n  \"status\": 409,\n  \"detail\": \"An account with this email already exists.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "03 - Reject duplicate email ignoring case",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const email = pm.collectionVariables.get(\"registeredEmail\");",
+                      "if (!email) {",
+                      "    console.warn(\"Run 01 - Register user successfully before this duplicate-email request.\");",
+                      "    pm.execution.skipRequest();",
+                      "} else {",
+                      "    pm.variables.set(\"registrationEmail\", email.toUpperCase());",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 409\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(409);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(409);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Run request 01 first. Sends the registered email in uppercase and expects 409, demonstrating case-insensitive account identity."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 409 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Run request 01 first. Sends the registered email in uppercase and expects 409, demonstrating case-insensitive account identity."
+                  },
+                  "status": "Conflict",
+                  "code": 409,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Conflict\",\n  \"status\": 409,\n  \"detail\": \"An account with this email already exists.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "04 - Reject invalid email format",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 400\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(400);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(400);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"not-an-email\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Email must have a valid format."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 400 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"not-an-email\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Email must have a valid format."
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"Invalid request content.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "05 - Reject blank email",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 400\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(400);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(400);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Blank email is invalid."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 400 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Blank email is invalid."
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"Invalid request content.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "06 - Reject missing email",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 400\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(400);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(400);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"password\": \"BookstoreTest2026!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Email is required."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 400 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"password\": \"BookstoreTest2026!\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Email is required."
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"Invalid request content.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "07 - Reject null password",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 400\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(400);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(400);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": null\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Null password is invalid."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 400 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": null\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Null password is invalid."
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"Invalid request content.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "08 - Reject missing password",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 400\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(400);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(400);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{registrationEmail}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Password is required."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 400 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"{{registrationEmail}}\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Password is required."
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"Invalid request content.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "09 - Reject whitespace-only password",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 400\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(400);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(400);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"            \"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "A password containing only whitespace is invalid, even when it meets the minimum length."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 400 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"            \"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "A password containing only whitespace is invalid, even when it meets the minimum length."
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"Invalid request content.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "10 - Reject 11-character password",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 400\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(400);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(400);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"AAAAAAAAAAA\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Minimum password length is 12 characters."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 400 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"AAAAAAAAAAA\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Minimum password length is 12 characters."
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"Invalid request content.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "11 - Reject 129-character password",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 400\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(400);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(400);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Maximum password length is 128 characters."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 400 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Maximum password length is 128 characters."
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"Invalid request content.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "12 - Reject 255-character email",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 400\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(400);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(400);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Maximum email length is 254 characters."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 400 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\",\n  \"password\": \"BookstoreTest2026!\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Maximum email length is 254 characters."
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"Invalid request content.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "13 - Reject malformed JSON",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 400\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(400);",
+                      "});",
+                      "pm.test(\"Response uses Problem Details\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/problem+json\")).to.equal(true);",
+                      "    const body = pm.response.json();",
+                      "    pm.expect(body.status).to.equal(400);",
+                      "    pm.expect(typeof body.title === \"string\" && body.title.length > 0).to.equal(true);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\"email\":",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "The intentionally incomplete JSON must be rejected with 400 before registration."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 400 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\"email\":",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "The intentionally incomplete JSON must be rejected with 400 before registration."
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/problem+json"
+                    }
+                  ],
+                  "body": "{\n  \"type\": \"about:blank\",\n  \"title\": \"Bad Request\",\n  \"status\": 400,\n  \"detail\": \"Invalid request content.\",\n  \"instance\": \"/api/v1/authentication/register\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "14 - Accept 12-character password",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 201 Created\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(201);",
+                      "});",
+                      "pm.test(\"Content type is JSON\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/json\")).to.equal(true);",
+                      "});",
+                      "pm.test(\"Response contains only a positive user ID and normalized email\", function () {",
+                      "    const body = pm.response.json();",
+                      "    const sent = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                      "    pm.expect(JSON.stringify(Object.keys(body).sort())).to.equal('[\"email\",\"id\"]');",
+                      "    pm.expect(Number.isInteger(body.id) && body.id > 0).to.equal(true);",
+                      "    pm.expect(body.email).to.equal(sent.email.toLowerCase());",
+                      "});",
+                      "pm.test(\"Response does not disclose the submitted password\", function () {",
+                      "    const sent = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                      "    pm.expect(pm.response.text().includes(sent.password)).to.equal(false);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"Bookstore12!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Tests the inclusive minimum password length. Creates an additional test account with a fresh email."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 201 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"Bookstore12!\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Tests the inclusive minimum password length. Creates an additional test account with a fresh email."
+                  },
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"id\": 101,\n  \"email\": \"reader.example@example.com\"\n}"
+                }
+              ]
+            },
+            {
+              "name": "15 - Accept 128-character password",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.variables.set(\"registrationEmail\", \"Reader.\" + pm.variables.replaceIn(\"{{$guid}}\") + \"@Example.com\");"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Status is 201 Created\", function () {",
+                      "    pm.expect(pm.response.code).to.equal(201);",
+                      "});",
+                      "pm.test(\"Content type is JSON\", function () {",
+                      "    pm.expect((pm.response.headers.get(\"Content-Type\") || \"\").includes(\"application/json\")).to.equal(true);",
+                      "});",
+                      "pm.test(\"Response contains only a positive user ID and normalized email\", function () {",
+                      "    const body = pm.response.json();",
+                      "    const sent = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                      "    pm.expect(JSON.stringify(Object.keys(body).sort())).to.equal('[\"email\",\"id\"]');",
+                      "    pm.expect(Number.isInteger(body.id) && body.id > 0).to.equal(true);",
+                      "    pm.expect(body.email).to.equal(sent.email.toLowerCase());",
+                      "});",
+                      "pm.test(\"Response does not disclose the submitted password\", function () {",
+                      "    const sent = JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                      "    pm.expect(pm.response.text().includes(sent.password)).to.equal(false);",
+                      "});"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "auth": {
+                  "type": "noauth"
+                },
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json, application/problem+json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/v1/authentication/register",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "authentication",
+                    "register"
+                  ]
+                },
+                "description": "Tests the inclusive maximum password length. Creates an additional test account with a fresh email."
+              },
+              "response": [
+                {
+                  "name": "Illustrative 201 response",
+                  "originalRequest": {
+                    "auth": {
+                      "type": "noauth"
+                    },
+                    "method": "POST",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json, application/problem+json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"email\": \"{{registrationEmail}}\",\n  \"password\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"\n}",
+                      "options": {
+                        "raw": {
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/v1/authentication/register",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "v1",
+                        "authentication",
+                        "register"
+                      ]
+                    },
+                    "description": "Tests the inclusive maximum password length. Creates an additional test account with a fresh email."
+                  },
+                  "status": "Created",
+                  "code": 201,
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    }
+                  ],
+                  "body": "{\n  \"id\": 101,\n  \"email\": \"reader.example@example.com\"\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "registeredEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "registeredUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "registeredPassword",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "noauth"
+  }
+}
