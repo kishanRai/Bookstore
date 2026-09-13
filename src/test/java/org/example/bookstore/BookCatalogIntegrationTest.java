@@ -40,7 +40,7 @@ class BookCatalogIntegrationTest {
 
 	private Long insertBook( String title, String author, String price ) {
 		return jdbcTemplate.queryForObject( """
-												INSERT INTO books (title, author, price, currency) VALUES (?, ?, ?, 'EUR') RETURNING id
+												INSERT INTO books (title, author, price, currency, stock_quantity) VALUES (?, ?, ?, 'EUR', 100) RETURNING id
 												""", Long.class, title, author, new BigDecimal( price ) );
 	}
 

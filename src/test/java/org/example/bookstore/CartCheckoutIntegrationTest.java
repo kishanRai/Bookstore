@@ -18,6 +18,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -73,9 +74,13 @@ class CartCheckoutIntegrationTest {
 	}
 
 	private Long book( String title, String price ) {
+		return book( title, price, 1000 );
+	}
+
+	private Long book( String title, String price, int stock ) {
 		return jdbc.queryForObject( """
-										INSERT INTO books(title,author,price,currency) VALUES (?, 'Author', ?, 'EUR') RETURNING id
-										""", Long.class, title, new BigDecimal( price ) );
+										INSERT INTO books(title,author,price,currency,stock_quantity) VALUES (?, 'Author', ?, 'EUR', ?) RETURNING id
+										""", Long.class, title, new BigDecimal( price ), stock );
 	}
 
 	private ResultActions cart( String email ) throws Exception {
@@ -170,8 +175,8 @@ class CartCheckoutIntegrationTest {
 	@Test
 	void shouldLimitDistinctBooksButAllowUpdatingExistingItems() throws Exception {
 		jdbc.update( """
-						 INSERT INTO books(title,author,price,currency)
-						 SELECT 'Bulk ' || n, 'Author', 1.00, 'EUR' FROM generate_series(1,100) n
+						 INSERT INTO books(title,author,price,currency,stock_quantity)
+						 SELECT 'Bulk ' || n, 'Author', 1.00, 'EUR', 1000 FROM generate_series(1,100) n
 						 """ );
 		jdbc.update( """
 						 INSERT INTO cart_items(user_id,book_id,quantity)
@@ -237,6 +242,16 @@ class CartCheckoutIntegrationTest {
 	}
 
 	@Test
+	void shouldRejectCheckoutWhenStockIsInsufficient() throws Exception {
+		Long scarceBook = book( "Scarce book", "9.99", 1 );
+		add( KISHAN, scarceBook, 2 ).andExpect( status().isOk() );
+		checkout( KISHAN, UUID.randomUUID() ).andExpect( status().isConflict() );
+		cart( KISHAN ).andExpect( jsonPath( "$.items[0].quantity" ).value( 2 ) );
+		assertThat( jdbc.queryForObject( "SELECT stock_quantity FROM books WHERE id=?", Integer.class, scarceBook ) ).isEqualTo( 1 );
+		assertThat( jdbc.queryForObject( "SELECT count(*) FROM customer_orders", Long.class ) ).isZero();
+	}
+
+	@Test
 	void shouldReplayCheckoutWithoutConsumingNewCart() throws Exception {
 		add( KISHAN, firstBook, 1 ).andExpect( status().isOk() );
 		UUID key = UUID.randomUUID();
@@ -252,17 +267,21 @@ class CartCheckoutIntegrationTest {
 	}
 
 	private List<MvcResult> concurrently( Callable<MvcResult> operation ) throws Exception {
+		return concurrently( operation, operation );
+	}
+
+	private List<MvcResult> concurrently( Callable<MvcResult> first, Callable<MvcResult> second ) throws Exception {
 		var executor = Executors.newFixedThreadPool( 2 );
 		var start = new CountDownLatch( 1 );
-		Callable<MvcResult> task = () -> {
+		Function<Callable<MvcResult>, Callable<MvcResult>> awaiting = operation -> () -> {
 			start.await();
 			return operation.call();
 		};
-		var first = executor.submit( task );
-		var second = executor.submit( task );
+		var firstResult = executor.submit( awaiting.apply( first ) );
+		var secondResult = executor.submit( awaiting.apply( second ) );
 		start.countDown();
 		try {
-			return List.of( first.get( 20, TimeUnit.SECONDS ), second.get( 20, TimeUnit.SECONDS ) );
+			return List.of( firstResult.get( 20, TimeUnit.SECONDS ), secondResult.get( 20, TimeUnit.SECONDS ) );
 		}
 		finally {
 			executor.shutdownNow();
@@ -286,6 +305,19 @@ class CartCheckoutIntegrationTest {
 		assertThat( body( results.get( 0 ) ).get( "id" ).asLong() ).isEqualTo( body( results.get( 1 ) ).get( "id" ).asLong() );
 		assertThat( jdbc.queryForObject( "SELECT count(*) FROM customer_orders", Long.class ) ).isEqualTo( 1L );
 		cart( KISHAN ).andExpect( jsonPath( "$.items" ).isEmpty() );
+	}
+
+	@Test
+	void shouldNotOversellStockUnderConcurrentCheckoutsByDifferentCustomers() throws Exception {
+		Long lastCopy = book( "Last copy", "9.99", 1 );
+		add( KISHAN, lastCopy, 1 ).andExpect( status().isOk() );
+		add( RAI, lastCopy, 1 ).andExpect( status().isOk() );
+		var results = concurrently(
+			() -> checkout( KISHAN, UUID.randomUUID() ).andReturn(),
+			() -> checkout( RAI, UUID.randomUUID() ).andReturn() );
+		assertThat( results.stream().map( r -> r.getResponse().getStatus() ).toList() ).containsExactlyInAnyOrder( 201, 409 );
+		assertThat( jdbc.queryForObject( "SELECT stock_quantity FROM books WHERE id=?", Integer.class, lastCopy ) ).isZero();
+		assertThat( jdbc.queryForObject( "SELECT count(*) FROM customer_orders", Long.class ) ).isEqualTo( 1L );
 	}
 
 	@Test
