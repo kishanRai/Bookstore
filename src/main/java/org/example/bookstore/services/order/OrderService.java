@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.bookstore.application.CustomerLock;
 import org.example.bookstore.application.events.BusinessEvents;
 import org.example.bookstore.application.order.CheckoutUseCase;
+import org.example.bookstore.application.order.StockReservationStrategy;
 import org.example.bookstore.domain.cart.Cart;
 import org.example.bookstore.entities.order.PurchaseOrder;
 import org.example.bookstore.exceptions.ResourceNotFoundException;
@@ -17,7 +18,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Coordinates customer locking, idempotent checkout and atomic order/cart persistence.
+ * Coordinates customer locking, stock reservation, idempotent checkout and atomic order/cart persistence.
  */
 @Service
 @RequiredArgsConstructor
@@ -27,11 +28,15 @@ public class OrderService implements CheckoutUseCase {
     private final CustomerLock customerLock;
     private final Clock clock;
     private final BusinessEvents events;
+    private final StockReservationStrategy stockReservation;
 
     /**
-     * Locks the customer, checks for a prior key, then persists a snapshot and clears the cart atomically.
-     * A retry returns the prior order before inspecting a newly filled cart. Keys last as long as orders.
-     * Any persistence failure rolls back both changes; success observers run only after commit.
+     * Locks the customer, checks for a prior key, reserves stock for every line, then persists a
+     * snapshot and clears the cart atomically. A retry returns the prior order before inspecting a
+     * newly filled cart or touching stock again. Keys last as long as orders. Any failure — including
+     * insufficient stock — rolls back every change; success observers run only after commit.
+     * Reserving in ascending book-ID order (the cart's natural iteration order) matches the order
+     * concurrent checkouts acquire book locks in, so two checkouts sharing books cannot deadlock.
      */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -43,6 +48,9 @@ public class OrderService implements CheckoutUseCase {
             return new Result(previous.get(), false);
         }
         Cart cart = Cart.restore(customerId, carts.findCart(customerId));
+        for (var item : cart.items()) {
+            stockReservation.reserve(item.getBook().getId(), item.getQuantity());
+        }
         var order = PurchaseOrder.fromCart(cart, idempotencyKey, Instant.now(clock));
         orders.saveAndFlush(order);
         carts.deleteCart(customerId);
