@@ -1,0 +1,32 @@
+name: Verify backend
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Verify Docker
+        run: docker info
+      - name: Build and test against PostgreSQL Testcontainers
+        run: bash mvnw --batch-mode --no-transfer-progress clean verify
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Test Swagger request handling
+        run: node --test src/test/javascript/bookstore-docs.test.cjs

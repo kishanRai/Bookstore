@@ -148,10 +148,18 @@ Swagger and Postman have separate cookie jars, so log in separately in each. Use
 
 - Controller OpenAPI annotations describe operations and status codes; DTO schema annotations and Jakarta validation describe bodies and limits.
 - `OpenApiConfiguration` defines session/CSRF schemes, reusable Problem Details responses and logout, which is implemented by Spring Security's filter rather than a controller.
-- Focused Javadoc on catalog, registration, cart, checkout and customer locking explains transaction boundaries and design tradeoffs. A generated HTML Javadoc site is not required to run the application.
+- Javadocs cover every declared production class, interface, record, enum, method and constructor, with descriptions on test classes. They explain purpose, method contracts, transaction boundaries and design tradeoffs; Lombok-generated boilerplate is not manually duplicated.
 - Keep this README, the generated contract and the Postman collection aligned when changing an endpoint. The OpenAPI integration test checks documentation availability and key contracts.
 
 The project uses [springdoc-openapi](https://springdoc.org/) `3.1.1` for Spring Boot 4, with [Swagger UI's request interceptor](https://swagger.io/docs/open-source-tools/swagger-ui/usage/configuration/) for the browser CSRF flow.
+
+To generate browsable Java documentation, run:
+
+```powershell
+.\mvnw.cmd javadoc:javadoc
+```
+
+Use `./mvnw` on macOS/Linux, then open `target/site/apidocs/index.html`. The configured [Maven Javadoc plugin](https://maven.apache.org/plugins/maven-javadoc-plugin/usage.html) includes internal members and validates comment syntax and references. Missing-comment warnings for fields and compiler-generated members are suppressed; keep explicit type/method documentation complete when adding code. Generated HTML stays under the ignored `target` directory and is optional for running the API.
 
 ## Test with Postman
 
@@ -163,7 +171,15 @@ The project uses [springdoc-openapi](https://springdoc.org/) `3.1.1` for Spring 
 6. Run **Authentication → Session** in order: login (`200`), current user (`200`), logout (`204`), and current user after logout (`401`).
 7. Seed at least one book, then run **Cart and Checkout** in order; it logs in again and creates one test order.
 
-The collection contains **37 saved requests**: one health request, one catalog request, 15 registration cases, four session requests and 16 cart/checkout requests. A collection pre-request script also calls `/api/v1/authentication/csrf` before each mutation and adds the returned header/token. These auxiliary requests are not included in the saved-request count.
+The collection contains **40 saved requests**: one health request, one catalog request, 15 registration cases, four session requests and 19 cart/checkout requests. A collection pre-request script also calls `/api/v1/authentication/csrf` before each mutation and adds the returned header/token. These auxiliary requests are not included in the saved-request count.
+
+For an optional automated run with Node.js installed, start the API and seed a book, then run:
+
+```shell
+npx --yes newman@6.2.2 run postman/Bookstore-Ready-to-Test.postman_collection.json
+```
+
+The collection uses the callback form of [`pm.sendRequest`](https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-send-request/) so the CSRF script works in both Postman and Newman. A complete run executes 40 saved requests plus 30 CSRF requests, with 114 assertions. Override the API address with `--env-var baseUrl=http://localhost:18080` when needed. Run against a development/test database; registration and checkout persist data.
 
 Registration expects `201` for cases 01, 14 and 15; `409` for cases 02 and 03; and `400` for cases 04–13. Expected error responses count as successful tests when their assertions pass. A complete registration run creates three persistent test accounts. Saved example responses are illustrative.
 
@@ -338,7 +354,7 @@ Add a book using its ID from the catalog:
 {"bookId": 1, "quantity": 2}
 ```
 
-Update quantity with `{"quantity": 4}`. Quantity must be an integer from 1 to 99; use DELETE to remove an item. Invalid request fields return `400`, an unknown book or a missing item on PUT returns `404`, and exceeding the combined quantity or cart capacity returns `409`. A cart supports up to 100 distinct books.
+Update quantity with `{"quantity": 4}`. Quantity must be an integer from 1 to 99; use DELETE to remove an item. Book IDs and quantities must be integral JSON numbers. Fractional values (including `2.0`) and quoted numbers such as `"2"` return `400` without changing the cart. Invalid request fields return `400`, an unknown book or a missing item on PUT returns `404`, and exceeding the combined quantity or cart capacity returns `409`. A cart supports up to 100 distinct books.
 
 Illustrative cart for two copies priced at EUR 12.50 each:
 
@@ -389,13 +405,16 @@ Run **Create order** once; use **Retry the same checkout** to resend its key. Cl
 | Tests | JUnit, Mockito, MockMvc and PostgreSQL Testcontainers |
 | Build and local development | Maven Wrapper, Docker Compose, Lombok and DevTools |
 
-The code is grouped by technical layer, with `catalog`, `authentication`, `cart` and `orders` subpackages:
+The code is grouped by technical layer, with `catalog`, `authentication`, `cart` and `order` subpackages:
 
 ```text
 src/main/java/org/example/bookstore/
   configurations/security/    HTTP security, authentication provider, password encoder
   controllers/               Request mapping and validation
-  services/                  Catalog mapping, authentication, cart rules and transactional checkout
+  application/               Cart/checkout use cases, customer lock and business-event ports
+  domain/                    Cart aggregate, Money value object, CurrencyCode and CartLimits
+  services/                  Authentication and transactional persistence orchestration
+  observability/             Correlated request logging and committed business-event observers
   repositories/              Database access
   entities/                  Book, AppUser, CartItem, PurchaseOrder and OrderItem models
   dtos/                      API request/response records
@@ -410,7 +429,7 @@ src/main/resources/db/migration/
 - `DaoAuthenticationProvider` verifies credentials against stored PBKDF2 hashes. The login request's string representation redacts credentials.
 - JSON login explicitly invokes session authentication strategies and saves the security context. The session ID changes on authentication to protect against session fixation.
 - Spring Security's logout filter clears authentication, invalidates the session and expires its cookie. Form login, HTTP Basic and saved-request redirects are disabled for this API.
-- `CurrentUserService` resolves user identity from the authenticated principal. HTTP security is separate from database authentication configuration so MVC slice tests can exercise access rules without loading repositories.
+- `CurrentUserService` resolves user identity from the authenticated principal at the HTTP boundary. Cart/order use cases receive a trusted customer ID; `JpaCustomerLock` acquires the database lock inside the application transaction. HTTP security is separate from database authentication configuration so MVC slice tests can exercise access rules without loading repositories.
 - Flyway owns the schema; `ddl-auto=validate` checks mappings rather than changing tables. Database constraints enforce unique normalized email, valid catalog values and EUR currency.
 
 Applied Flyway migrations must remain unchanged, including formatting. Add a new versioned migration for future schema changes.
@@ -419,6 +438,9 @@ Applied Flyway migrations must remain unchanged, including formatting. Add a new
 
 | Test class | Coverage |
 |---|---|
+| `CartTest`, `MoneyTest`, `OrderFactoryTest`, `OrderEncapsulationTest` | Isolated domain rules, exact totals, boundaries and immutable order snapshots |
+| `OrderServiceTest` | Isolated orchestration, clock, replay, ownership and failure behavior |
+| `TransactionalBusinessEventsTest`, `RequestLoggingFilterTest`, `BusinessEventLoggerTest` | Commit/rollback notification timing, correlation context cleanup and actual Log4j2 event fields |
 | `BookControllerTest` | MVC contract, pagination defaults/bounds and invalid input, using actual HTTP security rules and a mocked catalog service |
 | `BookCatalogIntegrationTest` | Database-backed catalog ordering, page metadata, empty catalog and pages beyond the last result |
 | `RegistrationIntegrationTest` | Registration, stored password hashing, case-insensitive duplicates and validation, with CSRF tokens |
@@ -445,6 +467,34 @@ node --test src/test/javascript/bookstore-docs.test.cjs
 
 These JavaScript tests use Node's built-in test runner with no npm dependencies. Node is not required to build or run the backend; Java integration tests run in the normal Maven suite.
 
+### Fast domain tests and CI
+
+Run isolated Java tests without Docker:
+
+```powershell
+.\mvnw.cmd "-Dtest=CartTest,MoneyTest,OrderFactoryTest,OrderEncapsulationTest,OrderServiceTest,TransactionalBusinessEventsTest,RequestLoggingFilterTest,BusinessEventLoggerTest" test
+```
+
+[GitHub Actions](.github/workflows/verify.yml) runs Java 17, a clean Maven verification with PostgreSQL Testcontainers, and the JavaScript tests for pushes and pull requests. The workflow uses the official [Java setup](https://github.com/actions/setup-java) and [Node setup](https://github.com/actions/setup-node) actions. A workflow file is not a claim that a remote run has passed; check the status of the submitted commit.
+
+### Optional dedicated PostgreSQL test database
+
+The default integration-test path uses Testcontainers. If the test process cannot access Docker's socket but can connect to PostgreSQL, use the test-only `external-test-db` profile with a separate database. Tests delete fixture data; this adapter requires an explicit database name matching `bookstore_*_test` and never defaults to the application database.
+
+With the Compose database running, create an empty dedicated test database once:
+
+```shell
+docker compose exec -T postgres createdb -U bookstore bookstore_local_test
+```
+
+Then run in PowerShell (the credentials below are the Compose development credentials):
+
+```powershell
+.\mvnw.cmd clean verify "-Dspring.profiles.active=external-test-db" "-Dbookstore.test.database-url=jdbc:postgresql://127.0.0.1:15432/bookstore_local_test" "-Dbookstore.test.database-username=bookstore" "-Dbookstore.test.database-password=bookstore_local"
+```
+
+Flyway applies the same migrations as the normal test setup. Use this profile only for tests; the normal application still starts with `local`. This alternative changes database provisioning, not test assertions.
+
 ## Configuration
 
 | Setting | Local value / behavior |
@@ -457,9 +507,17 @@ These JavaScript tests use Node's built-in test runner with no npm dependencies.
 | Session cookie | `HttpOnly=true`, `SameSite=Lax` |
 | Open Session in View | Disabled |
 | Exposed actuator endpoint | Health; internal health details hidden |
+| Browser origins | Override with `BOOKSTORE_CORS_ALLOWED_ORIGINS` (comma-separated); defaults to localhost ports 5173 and 3000 |
+| Logging | Log4j2 with ECS JSON; default level WARN, configurable with `LOGGING_LEVEL_ROOT` |
 | API documentation | Public GET access to Swagger assets/page and OpenAPI JSON/YAML |
 
 [`application.properties`](src/main/resources/application.properties) contains shared settings; [`application-local.properties`](src/main/resources/application-local.properties) selects the Compose database. Without `local` or separately supplied datasource settings, a standalone application has no configured database. Tests provide their own connection.
+
+Application loggers use Lombok `@Log4j2` with `spring-boot-starter-log4j2`. The default logging starter is excluded; `log4j-slf4j2-impl` routes framework SLF4J calls into Log4j2. Do not add Logback or the reverse `log4j-to-slf4j` bridge alongside this backend. Spring Boot manages the compatible dependency versions; see its [logging guidance](https://docs.spring.io/spring-boot/how-to/logging.html).
+
+Scoped Log4j2 `ThreadContext` supplies correlation, event, status, duration and customer/order identifiers to ECS JSON and restores prior thread values afterwards. Context values are JSON strings. Application event/request logs exclude passwords, hashes, session cookies, CSRF tokens, emails, query strings and request bodies. Successful business events are emitted after commit, and `X-Correlation-ID` links them to the HTTP response.
+
+The default root level is `WARN`, so `INFO` request/business-event logs and startup messages are suppressed while warnings and errors remain visible. Correlation headers are still returned. To restore informational logs, set `LOGGING_LEVEL_ROOT=INFO` in the application environment and restart, or change the default in `application.properties`.
 
 Sessions are currently stored in the application process, so restarting signs users out. Multiple replicas require a shared session store or an explicitly designed routing strategy. For HTTPS deployment, configure secure session cookies, deployed frontend origins and external database credentials. The checked-in credentials and CORS origins are for local development.
 
@@ -486,4 +544,4 @@ On macOS/Linux, substitute `./mvnw` in Maven commands. For startup failures, ins
 
 The core backend requirements are implemented. The remaining assignment work is the React catalog, authentication, cart and checkout/order-summary interface.
 
-Further extensions include catalog administration, stock management and payments, cursor pagination, CI automation and shared session storage for multiple application instances.
+Further extensions include catalog administration, stock management and payments, cursor pagination and shared session storage for multiple application instances.

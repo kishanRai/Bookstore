@@ -2534,7 +2534,154 @@
           ]
         },
         {
-          "name": "08 - Remove book",
+          "name": "08 - Reject fractional quantity",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/v1/cart/items/{{bookId}}",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"quantity\":2.7}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"bookId\")) { pm.execution.skipRequest(); throw new Error(\"Run Find a catalog book after inserting the README demo book.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.expect(pm.response.code).to.equal(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09 - Reject quoted quantity",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/v1/cart/items/{{bookId}}",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"quantity\":\"2\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"bookId\")) { pm.execution.skipRequest(); throw new Error(\"Run Find a catalog book after inserting the README demo book.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.expect(pm.response.code).to.equal(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10 - Reject fractional book ID",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{baseUrl}}/api/v1/cart/items",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json, application/problem+json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"bookId\":{{bookId}}.9,\"quantity\":1}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"bookId\")) { pm.execution.skipRequest(); throw new Error(\"Run Find a catalog book after inserting the README demo book.\"); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.expect(pm.response.code).to.equal(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11 - Remove book",
           "request": {
             "method": "DELETE",
             "auth": {
@@ -2570,7 +2717,7 @@
           ]
         },
         {
-          "name": "09 - Cart is empty after removal",
+          "name": "12 - Cart is empty after removal",
           "request": {
             "method": "GET",
             "auth": {
@@ -2598,7 +2745,7 @@
           ]
         },
         {
-          "name": "10 - Add two copies for checkout",
+          "name": "13 - Add two copies for checkout",
           "request": {
             "method": "POST",
             "auth": {
@@ -2648,7 +2795,7 @@
           ]
         },
         {
-          "name": "11 - Create order",
+          "name": "14 - Create order",
           "request": {
             "method": "POST",
             "auth": {
@@ -2689,7 +2836,7 @@
           ]
         },
         {
-          "name": "12 - Retry the same checkout",
+          "name": "15 - Retry the same checkout",
           "request": {
             "method": "POST",
             "auth": {
@@ -2730,7 +2877,7 @@
           ]
         },
         {
-          "name": "13 - Read order summary",
+          "name": "16 - Read order summary",
           "request": {
             "method": "GET",
             "auth": {
@@ -2767,7 +2914,7 @@
           ]
         },
         {
-          "name": "14 - Checkout cleared the cart",
+          "name": "17 - Checkout cleared the cart",
           "request": {
             "method": "GET",
             "auth": {
@@ -2795,7 +2942,7 @@
           ]
         },
         {
-          "name": "15 - Missing order returns 404",
+          "name": "18 - Missing order returns 404",
           "request": {
             "method": "GET",
             "auth": {
@@ -2822,7 +2969,7 @@
           ]
         },
         {
-          "name": "16 - Logout after cart testing",
+          "name": "19 - Logout after cart testing",
           "request": {
             "method": "POST",
             "auth": {
@@ -2903,21 +3050,34 @@
         "type": "text/javascript",
         "exec": [
           "if ([\"POST\", \"PUT\", \"PATCH\", \"DELETE\"].includes(pm.request.method)) {",
-          "    const response = await pm.sendRequest({",
+          "    // Callback form supports both the Postman app and Newman collection runs.",
+          "    pm.sendRequest({",
           "        url: pm.variables.replaceIn(\"{{baseUrl}}/api/v1/authentication/csrf\"),",
           "        method: \"GET\"",
+          "    }, function (error, response) {",
+          "        if (error || !response || response.code !== 200) {",
+          "            pm.execution.skipRequest();",
+          "            throw new Error(\"CSRF request failed. Start the application and check its health.\");",
+          "        }",
+          "        const csrf = response.json();",
+          "        if (!csrf.headerName || !csrf.token) {",
+          "            pm.execution.skipRequest();",
+          "            throw new Error(\"CSRF response did not contain headerName and token.\");",
+          "        }",
+          "        pm.request.headers.upsert({ key: csrf.headerName, value: csrf.token });",
           "    });",
-          "    if (response.code !== 200) {",
-          "        pm.execution.skipRequest();",
-          "        throw new Error(\"CSRF request failed. Start the updated application and check its health.\");",
-          "    }",
-          "    const csrf = response.json();",
-          "    if (!csrf.headerName || !csrf.token) {",
-          "        pm.execution.skipRequest();",
-          "        throw new Error(\"CSRF response did not contain headerName and token.\");",
-          "    }",
-          "    pm.request.headers.upsert({ key: csrf.headerName, value: csrf.token });",
           "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"Response has a correlation ID\", () => {",
+          "    pm.expect(pm.response.headers.get(\"X-Correlation-ID\")).to.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);",
+          "});"
         ]
       }
     }
