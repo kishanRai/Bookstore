@@ -1,380 +1,369 @@
-# Bookstore
+# Bookstore API
 
-![Java](https://img.shields.io/badge/Java-17-orange?logo=openjdk&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.1-brightgreen?logo=springboot&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?logo=postgresql&logoColor=white)
-![Flyway](https://img.shields.io/badge/Flyway-migrations-CC0200?logo=flyway&logoColor=white)
-![Build](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)
+A Java 17 / Spring Boot REST API for an online bookstore, with a paginated book catalog, user registration and session authentication backed by PostgreSQL.
 
-A Spring Boot REST API for a book catalog, built test-first (TDD) with a clean layered architecture (controller → service → repository → entity), Flyway-managed PostgreSQL schema, and a dual test strategy (fast MockMvc slice tests + real-database Testcontainers integration tests).
+**Implemented:** catalog listing, bounded pagination, registration, login, current-user lookup, logout, CSRF protection and API validation. **Next:** shopping cart, checkout/order persistence and the React frontend.
 
-> This project was built as a machine-coding / system-design interview exercise. It intentionally starts small and correct rather than broad — see [Roadmap](#roadmap--possible-extensions) for what's deliberately left out.
+## Contents
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [API Endpoints](#api-endpoints)
-- [Postman Collection](#postman-collection)
-- [Getting Started](#getting-started)
-- [Testing Strategy](#testing-strategy)
+- [Run from a new machine](#run-from-a-new-machine)
+- [Test with Postman](#test-with-postman)
+- [API reference](#api-reference)
+- [Architecture and security](#architecture-and-security)
+- [Tests](#tests)
 - [Configuration](#configuration)
-- [Roadmap / Possible Extensions](#roadmap--possible-extensions)
+- [Troubleshooting](#troubleshooting)
+- [Remaining work](#remaining-work)
 
-## Overview
+## Run from a new machine
 
-Bookstore exposes a read API over a `books` catalog:
+### 1. Install prerequisites
 
-- Each book has a `title`, `author`, `price`, and `currency`.
-- The schema is owned by **Flyway migrations**, not Hibernate auto-DDL (`ddl-auto=validate`), so the database is the source of truth and every change is versioned.
-- Currency is currently constrained to `EUR` at the database level (a deliberate, narrow first slice — see [Roadmap](#roadmap--possible-extensions)).
-- The service layer maps entities to a `BookResponse` DTO, keeping persistence details out of the API contract. Results are wrapped in `BookPageResponse` with bounded pagination and metadata.
-
-## Tech Stack
-
-| Layer | Technology |
+| Requirement | Purpose |
 |---|---|
-| Language / Runtime | Java 17 |
-| Framework | Spring Boot 4.1.1 (Web MVC, Validation, Actuator, Data JPA, DevTools) |
-| Database | PostgreSQL 17 |
-| Schema Migrations | Flyway (`flyway-database-postgresql`) |
-| Boilerplate reduction | Lombok |
-| MVC Slice Testing | JUnit + Mockito (`@WebMvcTest`) |
-| Integration Testing | Testcontainers (`@SpringBootTest` against a real containerized Postgres) |
-| Build | Maven (via Maven Wrapper — no local Maven install required) |
-| Local Infra | Docker Compose |
+| JDK 17 | Compile and run the backend; set `JAVA_HOME` to the JDK directory |
+| Git | Clone the repository |
+| Docker Desktop with Linux containers, or Docker Engine with Compose v2 | Run PostgreSQL and Testcontainers integration tests |
+| Internet access on first build | Download Maven, dependencies and the PostgreSQL image |
+| Postman (optional) | Run the supplied API collection |
 
-## Architecture
+Start Docker before running tests. A separate Maven or PostgreSQL installation is not required: the repository includes the Maven Wrapper, and Docker supplies PostgreSQL.
 
-```
-src/main/java/org/example/bookstore/
-├── BookstoreApplication.java          # Spring Boot entry point
-├── controllers/catalog/
-│   └── BookController.java            # REST layer — /api/v1/books
-├── services/catalog/
-│   └── BookService.java               # Business logic, entity → DTO mapping
-├── repositories/catalog/
-│   └── BookRepository.java            # Spring Data JPA repository
-├── entities/catalog/
-│   └── Book.java                      # JPA entity, maps to the `books` table
-└── dtos/catalog/
-    ├── BookResponse.java              # One book
-    └── BookPageResponse.java          # Books plus pagination metadata
+### 2. Clone and check the tools
 
-src/main/resources/
-├── application.properties             # Base config (used by tests via Testcontainers)
-├── application-local.properties        # `local` profile — points at Docker Compose Postgres
-└── db/migration/V1__create_books.sql  # Flyway migration defining the `books` table + constraints
+```shell
+git clone https://github.com/kishanRai/Bookstore.git
+cd Bookstore
+java -version
+docker version
+docker compose version
 ```
 
-Packages are grouped by technical layer, with a `catalog` subpackage in each layer. Additional domains can follow the same structure.
+`java -version` should report Java 17, and `docker version` should show a reachable server. Run subsequent commands from this repository directory.
 
-## API Endpoints
+### 3. Build and run the tests
 
-| Method | Path | Description | Success Response |
+Windows PowerShell:
+
+```powershell
+.\mvnw.cmd -v
+.\mvnw.cmd clean verify
+```
+
+macOS/Linux:
+
+```bash
+chmod +x mvnw
+./mvnw -v
+./mvnw clean verify
+```
+
+Check that Maven also reports Java 17. The first run downloads dependencies and may take longer. Integration tests create disposable PostgreSQL containers with dynamically assigned ports; they do not require the Compose database or the `local` profile. Continue after Maven reports `BUILD SUCCESS` and no test failures.
+
+### 4. Start the local database
+
+```shell
+docker compose up -d --wait
+docker compose ps
+```
+
+The `postgres` service should be healthy. Compose exposes PostgreSQL at `127.0.0.1:15432` and stores its data in a named volume. Port `5432` is used inside the container.
+
+### 5. Start the application
+
+Windows PowerShell:
+
+```powershell
+.\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=local"
+```
+
+macOS/Linux:
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+Keep this terminal open. The `local` profile connects to the Compose database, Flyway creates or migrates the schema, and Hibernate validates its mappings. Wait for the application-started message; the API listens on `http://localhost:8080`.
+
+**IntelliJ alternative:** open `pom.xml` as a Maven project, select JDK 17, reload Maven, and run `BookstoreApplication` with **Active profiles** set to just `local`. The full `--spring.profiles.active=local` argument does not belong in that field. Do not start both the Maven and IntelliJ application processes on port 8080.
+
+### 6. Confirm health and add optional demo data
+
+In a second terminal, check health. Use `curl.exe` in Windows PowerShell; use `curl` on macOS/Linux:
+
+```powershell
+curl.exe http://localhost:8080/actuator/health
+curl.exe "http://localhost:8080/api/v1/books?page=0&size=20"
+```
+
+Health should include `"status":"UP"`. A fresh database has no books or users, so an empty catalog response is expected. There is no catalog write API yet. To insert one sample book, run this single-line command in any of the shells above:
+
+```shell
+docker compose exec -T postgres psql -U bookstore -d bookstore -c "INSERT INTO books (title, author, price, currency) SELECT 'Clean Code', 'Robert C. Martin', 35.00, 'EUR' WHERE NOT EXISTS (SELECT 1 FROM books WHERE title = 'Clean Code' AND author = 'Robert C. Martin');"
+```
+
+The demo command avoids inserting another matching row when rerun sequentially. Actual IDs are assigned by PostgreSQL.
+
+### 7. Run the API collection
+
+Follow [Test with Postman](#test-with-postman) below to register an account and exercise login/logout.
+
+To stop local development, press `Ctrl+C` in the application terminal, then run `docker compose down`. The database volume is retained for the next start.
+
+## Test with Postman
+
+1. Select **Import → Files** and choose [`postman/Bookstore-Ready-to-Test.postman_collection.json`](postman/Bookstore-Ready-to-Test.postman_collection.json).
+2. Open **Bookstore - Ready to Test** and select **No environment**. The collection includes `baseUrl = http://localhost:8080`; a separate environment file is not needed.
+3. Keep Postman's cookie jar enabled. It retains the session cookie automatically.
+4. Send **Ops → Health Check**, then **Catalog → Get Books**.
+5. Run **Authentication → Registration** in its numbered order.
+6. Run **Authentication → Session** in order: login (`200`), current user (`200`), logout (`204`), and current user after logout (`401`).
+
+The collection contains **21 saved requests**: one health request, one catalog request, 15 registration cases and four session requests. A collection pre-request script also calls `/api/v1/authentication/csrf` before each mutation and adds the returned header/token. These auxiliary requests are not included in the saved-request count.
+
+Registration expects `201` for cases 01, 14 and 15; `409` for cases 02 and 03; and `400` for cases 04–13. Expected error responses count as successful tests when their assertions pass. A complete registration run creates three persistent test accounts. Saved example responses are illustrative.
+
+### Custom email and reusable variables
+
+Request **01 - Register user successfully** normally generates a fresh `registrationEmail` for every send. To use your own email, change its **Body → raw → JSON** to:
+
+```json
+{
+  "email": "reader@example.com",
+  "password": "BookstoreTest2026!"
+}
+```
+
+Leave the scripts enabled. After a `201` response, the request saves `registeredEmail`, `registeredUserId` and `registeredPassword` as collection variables. The Session login request reuses them:
+
+```json
+{
+  "email": "{{registeredEmail}}",
+  "password": "{{registeredPassword}}"
+}
+```
+
+`registrationEmail` is the address being submitted; `registeredEmail` is the normalized address returned after successful registration. Inspect saved values under **collection → Variables**. Reusing an existing email at the registration endpoint intentionally returns `409`; use the login endpoint to access that account. Restore `"{{registrationEmail}}"` in request 01 for repeatable automated registration runs. Use test credentials when running or exporting this collection.
+
+## API reference
+
+Base URL: `http://localhost:8080`. Request and success-response bodies use JSON unless the endpoint returns no content.
+
+| Method | Path | Access | Success |
 |---|---|---|---|
-| `GET` | `/api/v1/books` | Returns a bounded page of books, ordered by `id` ascending | `200 OK` — JSON object containing `content` and pagination metadata |
-| `GET` | `/actuator/health` | Application health (Spring Boot Actuator; details hidden) | `200 OK` when healthy — `{"status":"UP"}` |
+| `GET` | `/actuator/health` | Public | `200` with health status when healthy |
+| `GET` | `/api/v1/books` | Public | `200` with a page of books |
+| `GET` | `/api/v1/authentication/csrf` | Public; creates CSRF session state as needed | `200` with header name and token |
+| `POST` | `/api/v1/authentication/register` | Public, with CSRF token and associated cookie | `201` with user ID and email |
+| `POST` | `/api/v1/authentication/login` | Public, with CSRF token and associated cookie | `200` with user ID and email; authenticates session |
+| `GET` | `/api/v1/authentication/me` | Authenticated session | `200` with user ID and email |
+| `POST` | `/api/v1/authentication/logout` | CSRF token and associated session cookie | `204`, no body; invalidates current session |
 
-### Catalog query parameters
+### Catalog pagination
 
 ```http
 GET /api/v1/books?page=0&size=20
 ```
 
-| Parameter | Type | Required | Default | Inclusive limits | Meaning |
-|---|---|---|---|---|---|
-| `page` | Integer | No | `0` | `0` to `10000` | Zero-based page number: `0` is the first page, `1` is the second |
-| `size` | Integer | No | `20` | `1` to `100` | Maximum number of books returned in one page |
+| Parameter | Type | Default | Inclusive limits | Meaning |
+|---|---|---|---|---|
+| `page` | Integer | `0` | `0`–`10000` | Zero-based page number |
+| `size` | Integer | `20` | `1`–`100` | Maximum books returned on a page |
 
-Omitted or empty parameters use their defaults. Results always use ascending `id` order; client-controlled sorting is not currently supported. Values outside the limits are rejected with `400 Bad Request`, rather than silently clamped. These bounds are declared on `BookController` using `@Min` and `@Max`.
+Both parameters are optional; omitted or empty values use their defaults. Sorting is always by ascending `id`. Out-of-range, fractional, nonnumeric or integer-overflow values return `400` rather than being clamped.
 
-Examples (use `curl.exe` in Windows PowerShell):
-
-```powershell
-# First page, default capacity of 20 books
-curl.exe "http://localhost:8080/api/v1/books"
-
-# Second page, at most two books
-curl.exe "http://localhost:8080/api/v1/books?page=1&size=2"
-
-# Largest allowed page capacity
-curl.exe "http://localhost:8080/api/v1/books?page=0&size=100"
-```
-
-On macOS/Linux, use `curl` with the same quoted URLs.
-
-### Successful response
-
-For a catalog containing two books, `GET /api/v1/books?page=0&size=1` returns:
+Illustrative response for a catalog containing one book:
 
 ```json
 {
   "content": [
     {
       "id": 1,
-      "title": "Harry Potter and the Philosopher's Stone",
-      "author": "J.K. Rowling",
-      "price": 45.50,
+      "title": "Clean Code",
+      "author": "Robert C. Martin",
+      "price": 35.00,
       "currency": "EUR"
     }
   ],
   "page": 0,
-  "size": 1,
-  "totalElements": 2,
-  "totalPages": 2,
-  "hasNext": true
-}
-```
-
-The title, price, and ID above are illustrative; actual values come from the database.
-
-| Field | JSON type | Meaning |
-|---|---|---|
-| `content` | Array of book objects | Books on this page; empty when no rows match the requested page |
-| `page` | Number (integer) | Requested zero-based page number |
-| `size` | Number (integer) | Requested page capacity, not the actual number of returned books |
-| `totalElements` | Number (integer) | Total books in the catalog, across all pages; represented by a Java `long` |
-| `totalPages` | Number (integer) | Number of pages for the requested size; `0` for an empty catalog |
-| `hasNext` | Boolean | Whether another page exists after the requested page |
-
-Each book contains `id` (integer), `title` (string), `author` (string), `price` (JSON number backed by Java `BigDecimal`), and `currency` (currently `"EUR"`). Clients should format prices for display; JSON numbers do not guarantee trailing zeroes.
-
-The number of returned books is `content.length`, which can be smaller than `size`. To browse sequentially, keep the same `size` and increment `page` while `hasNext` is `true`, subject to the page-number cap.
-
-**Contract change:** the endpoint now returns a page object instead of its earlier bare JSON array. Frontend and Postman consumers should read the books from `response.content`.
-
-### Empty catalog and pages beyond the last result
-
-An empty catalog with default parameters returns `200 OK`:
-
-```json
-{
-  "content": [],
-  "page": 0,
   "size": 20,
-  "totalElements": 0,
-  "totalPages": 0,
-  "hasNext": false
-}
-```
-
-A valid page number beyond the available results also returns `200 OK`, not `404`. For example, with two books, requesting `page=1&size=20` returns:
-
-```json
-{
-  "content": [],
-  "page": 1,
-  "size": 20,
-  "totalElements": 2,
+  "totalElements": 1,
   "totalPages": 1,
   "hasNext": false
 }
 ```
 
-### Invalid requests
+| Field | Meaning |
+|---|---|
+| `content` | Array of books on the requested page |
+| `page` / `size` | Requested page number and capacity; `size` is not the returned item count |
+| `totalElements` | Total books across the catalog; Java `long` |
+| `totalPages` | Pages at the requested size; zero for an empty catalog |
+| `hasNext` | Whether another page of data exists |
 
-| Example query | Result | Reason |
+Book IDs are integers; title and author are strings. Prices use Java `BigDecimal` and JSON numbers; clients format decimal places for display. Currency is constrained to `EUR` by the database.
+
+An empty catalog returns `200` with `content: []`, zero totals and `hasNext: false`. A valid page beyond the last result also returns `200` with empty content while preserving the catalog's totals. Clients read `response.content`, not a top-level array.
+
+Pagination is applied in the database. Offset queries and total-count queries can still become costly for large catalogs; a size bound does not guarantee constant query time. At size 100, page 10000 starts at offset 1000000. `hasNext` reflects available data and does not override the page-number cap. Separate requests do not share a snapshot, so concurrent catalog changes can shift results or totals. Cursor pagination is a possible later improvement.
+
+### Registration and login
+
+Both endpoints accept `email` and `password` fields, as shown in the Postman examples.
+
+| Field | Registration validation | Login validation |
 |---|---|---|
-| `?page=-1` | `400 Bad Request` | Page cannot be negative |
-| `?page=10001` | `400 Bad Request` | Exceeds the page-number cap |
-| `?size=0` or `?size=-1` | `400 Bad Request` | Size must be positive |
-| `?size=101` | `400 Bad Request` | Exceeds the maximum page capacity |
-| `?page=abc` or `?size=1.5` | `400 Bad Request` | Parameters must be integers |
-| `?page=2147483648` | `400 Bad Request` | Value cannot be represented by the controller's Java `int` parameter |
+| `email` | Nonblank, valid email syntax, at most 254 characters | Same |
+| `password` | Nonblank, 12–128 characters | Nonblank, at most 128 characters; credentials must match |
 
-Invalid requests are rejected before invoking `BookService`. A custom error-body schema is not defined yet; clients should rely on the HTTP status rather than an assumed error JSON structure.
-
-### Pagination implementation and limits
-
-`BookService` passes a `PageRequest` with ascending ID order to `BookRepository.findAll(...)`. The database limits the selected rows; the application does not load the entire catalog and then slice a Java list. The result is mapped to our `BookPageResponse` DTO.
-
-This bounds the number of books loaded and serialized per request. It does not guarantee constant query time: offset queries can become expensive on deep pages, and obtaining totals can require a count query. The page cap is an application policy, not a Spring limitation. With `size=100`, page `10000` begins at offset `1000000`; requests for a higher page remain invalid even if more books exist. `hasNext` reflects the data and does not override this cap.
-
-Ascending ID order is deterministic for an unchanged catalog. Separate page requests do not share a database snapshot, so concurrent inserts or deletions can change totals or shift results. Cursor pagination is a possible future improvement for larger catalogs.
-
-## Postman Collection
-
-A ready-to-import Postman collection and environment are included in [`postman/`](postman/):
-
-- [`Bookstore.postman_collection.json`](postman/Bookstore.postman_collection.json) — requests for every endpoint above, with saved example responses
-- [`Bookstore.postman_environment.json`](postman/Bookstore.postman_environment.json) — a `baseUrl` variable defaulting to `http://localhost:8080`
-
-**To import:**
-
-1. Open Postman → **Import** → **Files**.
-2. Select both `postman/Bookstore.postman_collection.json` and `postman/Bookstore.postman_environment.json`.
-3. Select the **Bookstore - Local** environment (top-right environment dropdown) so `{{baseUrl}}` resolves.
-4. Start the app (see [Getting Started](#getting-started)), then run **Catalog → Get All Books** or **Ops → Health Check**. The existing catalog request name is historical: the endpoint now returns one page. Add `page` and `size` in the Params tab; refer to [API Endpoints](#api-endpoints) for the current response contract. Older saved responses in the collection may still show the previous array format.
-
-<details>
-<summary><strong>Or paste the raw collection JSON</strong> (Postman → Import → Raw Text)</summary>
+Email is normalized to lowercase using `Locale.ROOT`; login and duplicate detection are case-insensitive. Passwords are not trimmed or case-normalized. Successful registration (`201`), login (`200`) and current-user lookup (`200`) return this shape:
 
 ```json
 {
-	"info": {
-		"_postman_id": "8f2b6a3e-1c4d-4b8a-9e2f-6d0a3c7b5e9a",
-		"name": "Bookstore API",
-		"description": "Spring Boot Bookstore catalog service — book listing and health check endpoints.",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"item": [
-		{
-			"name": "Catalog",
-			"item": [
-				{
-					"name": "Get All Books",
-					"request": {
-						"method": "GET",
-						"header": [
-							{ "key": "Accept", "value": "application/json" }
-						],
-						"url": {
-							"raw": "{{baseUrl}}/api/v1/books",
-							"host": ["{{baseUrl}}"],
-							"path": ["api", "v1", "books"]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "Ops",
-			"item": [
-				{
-					"name": "Health Check",
-					"request": {
-						"method": "GET",
-						"header": [
-							{ "key": "Accept", "value": "application/json" }
-						],
-						"url": {
-							"raw": "{{baseUrl}}/actuator/health",
-							"host": ["{{baseUrl}}"],
-							"path": ["actuator", "health"]
-						}
-					}
-				}
-			]
-		}
-	],
-	"variable": [
-		{ "key": "baseUrl", "value": "http://localhost:8080", "type": "string" }
-	]
+  "id": 1,
+  "email": "reader@example.com"
 }
 ```
 
-*(This is a trimmed copy for quick pasting — the full file with saved example responses lives at [`postman/Bookstore.postman_collection.json`](postman/Bookstore.postman_collection.json).)*
+Registration creates an account but does not log it in. Passwords and hashes are excluded from these responses. Duplicate registration returns `409`. Unknown-user and incorrect-password login attempts return the same generic `401` message.
 
-</details>
+### Session and CSRF flow for other clients
 
-## Getting Started
+1. `GET /api/v1/authentication/csrf`; retain the session cookie and read `headerName` and `token` from the JSON response.
+2. Send registration or login with that cookie, `Content-Type: application/json` and the returned header/token, normally `X-CSRF-TOKEN`.
+3. On successful login, retain the updated session cookie and fetch `/csrf` again before the next mutation: login rotates the session ID and clears the previous CSRF token.
+4. Send `/me` with the same cookie to retrieve the authenticated user.
+5. Send `POST /logout` with the current CSRF token and cookie. Afterwards, `/me` returns `401`; fetch a new CSRF token before another registration or login attempt.
 
-### Prerequisites
+Example CSRF response (the value is generated at runtime):
 
-- Java 17
-- Docker Desktop (for PostgreSQL — also required for running the integration test suite, via Testcontainers)
-- No local Maven install needed — the Maven Wrapper (`mvnw` / `mvnw.cmd`) is bundled
-
-### 1. Clone
-
-```bash
-git clone <repository-url>
-cd Bookstore
+```json
+{
+  "headerName": "X-CSRF-TOKEN",
+  "token": "<generated-token>"
+}
 ```
 
-### 2. Run the test suite
+Authentication uses the `JSESSIONID` cookie, not a bearer token. Browser clients must use `credentials: "include"` for requests participating in the session, including the initial CSRF request. Local credentialed CORS permits `http://localhost:5173` and `http://localhost:3000`; use `localhost` consistently rather than mixing it with `127.0.0.1`.
 
-Testcontainers automatically starts and tears down a disposable Postgres container for the integration tests — no manual database setup needed to run `verify`:
+### Error responses
 
-```bash
-# macOS/Linux
-./mvnw clean verify
+Controller validation and application exceptions are handled through `ApiExceptionHandler`; authentication/access failures in the security filters also return `application/problem+json`.
 
-# Windows
-.\mvnw.cmd clean verify
+```json
+{
+  "type": "about:blank",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Invalid email or password"
+}
 ```
 
-Run a single test class:
+| Status | Typical cause |
+|---|---|
+| `400` | Malformed JSON, invalid request fields or invalid pagination |
+| `401` | Incorrect login credentials or anonymous access to `/me` |
+| `403` | Missing/invalid CSRF token or forbidden access |
+| `409` | Email already registered |
 
-```bash
-.\mvnw.cmd "-Dtest=BookControllerTest" test
-.\mvnw.cmd "-Dtest=BookCatalogIntegrationTest" test
+CSRF validation runs before the controller, so an invalid POST without a valid token can return `403` before field validation would return `400`. Framework-generated Problem Details may include additional fields such as `instance`; clients should use the HTTP status and available fields instead of assuming an exact error-property set.
+
+## Architecture and security
+
+| Layer / tool | Implementation |
+|---|---|
+| Runtime and framework | Java 17, Spring Boot 4.1.1, Spring MVC and Jakarta Validation |
+| Persistence | Spring Data JPA, PostgreSQL 17, Flyway |
+| Authentication | Spring Security, database-backed `UserDetailsService`, existing PBKDF2 encoder |
+| Tests | JUnit, Mockito, MockMvc and PostgreSQL Testcontainers |
+| Build and local development | Maven Wrapper, Docker Compose, Lombok and DevTools |
+
+The code is grouped by technical layer, with `catalog` and `authentication` subpackages:
+
+```text
+src/main/java/org/example/bookstore/
+  configurations/security/    HTTP security, authentication provider, password encoder
+  controllers/               Request mapping and validation
+  services/                  Catalog mapping, registration and current-user lookup
+  repositories/              Database access
+  entities/                  Book and AppUser persistence models
+  dtos/                      API request/response records
+  exceptions/                Application exceptions and Problem Details
+
+src/main/resources/db/migration/
+  V1__create_books.sql
+  V2__create_app_users.sql
 ```
 
-### 3. Run the app locally against Docker Postgres
+- `DaoAuthenticationProvider` verifies credentials against stored PBKDF2 hashes. The login request's string representation redacts credentials.
+- JSON login explicitly invokes session authentication strategies and saves the security context. The session ID changes on authentication to protect against session fixation.
+- Spring Security's logout filter clears authentication, invalidates the session and expires its cookie. Form login, HTTP Basic and saved-request redirects are disabled for this API.
+- `CurrentUserService` resolves user identity from the authenticated principal. HTTP security is separate from database authentication configuration so MVC slice tests can exercise access rules without loading repositories.
+- Flyway owns the schema; `ddl-auto=validate` checks mappings rather than changing tables. Database constraints enforce unique normalized email, valid catalog values and EUR currency.
 
-Start the database (defined in `compose.yaml`, exposed on host port `15432`):
+Applied Flyway migrations must remain unchanged, including formatting. Add a new versioned migration for future schema changes.
 
-```bash
-docker compose up -d --wait
-docker compose ps
+## Tests
+
+| Test class | Coverage |
+|---|---|
+| `BookControllerTest` | MVC contract, pagination defaults/bounds and invalid input, using actual HTTP security rules and a mocked catalog service |
+| `BookCatalogIntegrationTest` | Database-backed catalog ordering, page metadata, empty catalog and pages beyond the last result |
+| `RegistrationIntegrationTest` | Registration, stored password hashing, case-insensitive duplicates and validation, with CSRF tokens |
+| `AuthenticationIntegrationTest` | Login, normalization, session rotation/persistence, wrong credentials, unknown users, anonymous access, missing CSRF and logout |
+| `BookstoreApplicationTests` | Application-context startup |
+
+Integration tests use `PostgresTestConfiguration` and `@ServiceConnection`; they apply the real Flyway migrations to disposable PostgreSQL containers. Authentication tests obtain CSRF tokens from the endpoint and reuse sessions across requests. Catalog MVC tests use `@WebMvcTest`; database integration tests use `@SpringBootTest` with MockMvc.
+
+Run the full suite with the build command in setup step 3. For focused authentication work:
+
+```powershell
+.\mvnw.cmd "-Dtest=AuthenticationIntegrationTest,RegistrationIntegrationTest,BookControllerTest" test
 ```
 
-Run the app with the `local` profile, which points at that container and lets Flyway auto-migrate the schema on boot:
-
-```bash
-# macOS/Linux
-./mvnw spring-boot:run -Dspring-boot.run.profiles=local
-
-# Windows
-.\mvnw.cmd spring-boot:run "-Dspring-boot.run.profiles=local"
-```
-
-The app starts on **http://localhost:8080**.
-
-### 4. Seed sample data
-
-There is no write endpoint yet, so sample rows are inserted directly via `psql` inside the running container (`currency` must be `EUR` — enforced by a DB check constraint):
-
-```bash
-docker compose exec postgres psql -U bookstore -d bookstore -c \
-  "INSERT INTO books (title, author, price, currency) VALUES ('Harry Potter and the Philosopher''s Stone', 'J.K. Rowling', 45.50, 'EUR');"
-```
-
-### 5. Call the API
-
-```bash
-curl "http://localhost:8080/api/v1/books?page=0&size=20"
-```
-
-...or use the [Postman collection](#postman-collection) above.
-
-## Testing Strategy
-
-Two complementary layers, both TDD-driven:
-
-- **`BookControllerTest`** (`@WebMvcTest` + Mockito `@MockitoBean`) — a fast, sliced MVC test that mocks `BookService` and asserts the controller's HTTP contract (status, content type, JSON body) using a focused Spring MVC context and no database. It covers default pagination, accepted boundary values, and invalid parameters rejected before the service is invoked.
-- **`BookCatalogIntegrationTest`** (`@SpringBootTest` + `@AutoConfigureMockMvc`, backed by a real containerized Postgres via `PostgresTestConfiguration`) — exercises the full stack (controller → service → repository → real database), verifying empty-catalog behavior, correct `id`-ordered serialization, requested page contents and metadata, and empty content beyond the last page against actual rows. `@Sql` cleans the `books` table before and after each test for isolation.
-- **`BookstoreApplicationTests`** — a plain context-load smoke test, also against a real Postgres container.
-
-Together they give fast feedback on the HTTP layer and high confidence that the JPA mappings, Flyway schema, and database constraints actually work end-to-end.
+Use `./mvnw` instead of `.\mvnw.cmd` on macOS/Linux. Test reports are generated under `target/surefire-reports/`. Test coverage described here is not a substitute for a successful verification run of the revision being reviewed.
 
 ## Configuration
 
-| Profile | File | Purpose | Datasource |
-|---|---|---|---|
-| default | `application.properties` | Base config; used by tests | None declared — Testcontainers injects one via `@ServiceConnection` |
-| `local` | `application-local.properties` | Running the app locally | `jdbc:postgresql://127.0.0.1:15432/bookstore` (Docker Compose) |
+| Setting | Local value / behavior |
+|---|---|
+| Application port | `8080` |
+| Active profile for local startup | `local` |
+| Database URL | `jdbc:postgresql://127.0.0.1:15432/bookstore` |
+| Local database credentials | `bookstore` / `bookstore_local`, for the Compose development database |
+| Session timeout | 30 minutes of inactivity |
+| Session cookie | `HttpOnly=true`, `SameSite=Lax` |
+| Open Session in View | Disabled |
+| Exposed actuator endpoint | Health; internal health details hidden |
 
-Key settings (`application.properties`):
+[`application.properties`](src/main/resources/application.properties) contains shared settings; [`application-local.properties`](src/main/resources/application-local.properties) selects the Compose database. Without `local` or separately supplied datasource settings, a standalone application has no configured database. Tests provide their own connection.
 
-| Property | Value | Meaning |
-|---|---|---|
-| `server.port` | `8080` | HTTP port |
-| `spring.jpa.hibernate.ddl-auto` | `validate` | Hibernate only validates the schema — Flyway owns it |
-| `spring.jpa.open-in-view` | `false` | No lazy-loading session held open through the view layer |
-| `management.endpoints.web.exposure.include` | `health` | Only the health actuator endpoint is exposed |
-| `management.endpoint.health.show-details` | `never` | Health responses don't leak internal details |
+Sessions are currently stored in the application process, so restarting signs users out. Multiple replicas require a shared session store or an explicitly designed routing strategy. For HTTPS deployment, configure secure session cookies, deployed frontend origins and external database credentials. The checked-in credentials and CORS origins are for local development.
 
-## Roadmap / Possible Extensions
+## Troubleshooting
 
-Not implemented today — listed to show the intended direction, not as claims about current functionality:
+| Symptom | Action |
+|---|---|
+| Testcontainers cannot find Docker | Start Docker, enable Linux containers where applicable, and confirm `docker version` reaches the server |
+| Database connection refused | Confirm `docker compose ps` is healthy, use the `local` profile and check host port `15432` |
+| Database port already allocated | Free port `15432`, or change the Compose host port and the local datasource URL together |
+| Application port 8080 already allocated | Stop the earlier application process; avoid running Maven and IntelliJ instances simultaneously |
+| Flyway checksum mismatch | Compare the applied migration with Git history and restore unintended edits; put intended schema changes in a new migration |
+| POST returns `403` | Obtain a fresh CSRF token using the same cookie jar; refresh it after login/logout and keep collection scripts enabled |
+| `/me` returns `401` after login | Retain the updated session cookie, use the same host, and enable browser credentials or Postman's cookie jar |
+| `registeredEmail` is unresolved | Run registration request 01 successfully, keep requests in the same collection, and select No environment |
+| Duplicate registration returns `409` | Use login for that account or register a different email |
+| Maven dependency not found after a failed download | Disable Maven offline mode, run `.\mvnw.cmd -U dependency:resolve`, then reload Maven in the IDE |
+| Maven reports `PKIX path building failed` | Check the JDK used by Maven and its certificate/proxy configuration; fix trust rather than disabling TLS verification |
 
-- `POST /api/v1/books` (and `PUT`/`DELETE`) to manage the catalog via the API instead of `psql`
-- Cursor pagination for larger catalogs and client-controlled sorting (bounded `page`/`size` pagination is implemented)
-- Multi-currency support (the `chk_books_currency` constraint currently pins `EUR`)
-- OpenAPI/Swagger UI for interactive API docs
-- Global exception handling / `@ControllerAdvice` for consistent error responses
-- CI pipeline running `mvnw clean verify` on push
+On macOS/Linux, substitute `./mvnw` in Maven commands. For startup failures, inspect the first meaningful `Caused by` message; a Maven completion banner alone does not prove the application is running.
+
+## Remaining work
+
+The following are not implemented yet:
+
+1. Persisted shopping cart owned by the authenticated user, including add/update/remove operations and server-calculated totals.
+2. Checkout and order persistence, saving item prices and clearing the cart in one transaction.
+3. React catalog, authentication, cart and order-summary screens.
+
+Further extensions include catalog administration, cursor pagination, API documentation generation, CI automation and shared session storage for multiple application instances.
